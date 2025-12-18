@@ -89,5 +89,28 @@ export function useHuntingFeedback() {
     // No feedback for regular pass
   }, [playChaChing, vibrate]);
 
-  return { triggerFeedback, playChaChing, vibrate };
+  // Short beep for detection
+  const playDetectionBeep = useCallback(async () => {
+    try {
+      const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+      const oscillator = ctx.createOscillator();
+      const gainNode = ctx.createGain();
+      
+      oscillator.connect(gainNode);
+      gainNode.connect(ctx.destination);
+      
+      oscillator.type = 'sine';
+      oscillator.frequency.setValueAtTime(880, ctx.currentTime);
+      
+      gainNode.gain.setValueAtTime(0.15, ctx.currentTime);
+      gainNode.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.1);
+      
+      oscillator.start(ctx.currentTime);
+      oscillator.stop(ctx.currentTime + 0.1);
+    } catch {
+      // Silently fail
+    }
+  }, []);
+
+  return { triggerFeedback, playChaChing, vibrate, playDetectionBeep };
 }

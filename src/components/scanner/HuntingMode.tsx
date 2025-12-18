@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -22,9 +22,11 @@ import {
   RotateCcw,
   Flame,
   Sparkles,
-  LogIn
+  LogIn,
+  Zap
 } from 'lucide-react';
 import { BarcodeScanner, type ParsedUPC } from './BarcodeScanner';
+import { ContinuousHunting } from './ContinuousHunting';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
@@ -97,7 +99,7 @@ function VerdictBadge({ verdict }: { verdict: Verdict }) {
 }
 
 export function HuntingMode({ open, onOpenChange, onAddToCollection, ownedComics = [] }: HuntingModeProps) {
-  const [activeTab, setActiveTab] = useState<'scan' | 'search'>('scan');
+  const [activeTab, setActiveTab] = useState<'scan' | 'search' | 'rapid'>('scan');
   const [isSearching, setIsSearching] = useState(false);
   const [result, setResult] = useState<HuntingResult | null>(null);
   const [searchTitle, setSearchTitle] = useState('');
@@ -379,17 +381,28 @@ export function HuntingMode({ open, onOpenChange, onAddToCollection, ownedComics
             </div>
           ) : (
             /* Scanner / Search UI */
-            <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'scan' | 'search')}>
-              <TabsList className="grid w-full grid-cols-2">
+            <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'scan' | 'search' | 'rapid')}>
+              <TabsList className="grid w-full grid-cols-3">
+                <TabsTrigger value="rapid" className="min-h-[44px]">
+                  <Zap className="w-4 h-4 mr-2" />
+                  Rapid Fire
+                </TabsTrigger>
                 <TabsTrigger value="scan" className="min-h-[44px]">
                   <Barcode className="w-4 h-4 mr-2" />
-                  Scan Barcode
+                  Barcode
                 </TabsTrigger>
                 <TabsTrigger value="search" className="min-h-[44px]">
                   <Search className="w-4 h-4 mr-2" />
-                  Manual Search
+                  Search
                 </TabsTrigger>
               </TabsList>
+
+              <TabsContent value="rapid" className="mt-4">
+                <ContinuousHunting 
+                  ownedComics={ownedComics}
+                  onExit={() => setActiveTab('scan')}
+                />
+              </TabsContent>
 
               <TabsContent value="scan" className="mt-4">
                 {isSearching ? (
