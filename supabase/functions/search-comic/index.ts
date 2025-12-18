@@ -5,8 +5,185 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-// ComicVine API - requires user's API key or we use a fallback search
 const COMICVINE_API = 'https://comicvine.gamespot.com/api';
+
+interface SearchResult {
+  title: string;
+  issueNumber: string;
+  volume?: number;
+  publisher: string;
+  coverDate?: string;
+  writer?: string;
+  artist?: string;
+  coverArtist?: string;
+  description?: string;
+  coverImageUrl?: string;
+  comicvineId?: string;
+  isKeyIssue?: boolean;
+  keyIssueReason?: string;
+}
+
+async function searchComicVine(
+  title: string,
+  issueNumber?: string,
+  publisher?: string,
+  apiKey?: string
+): Promise<SearchResult[]> {
+  if (!apiKey) return [];
+
+  try {
+    console.log('Searching ComicVine for:', { title, issueNumber, publisher });
+
+    // Search for volumes matching the title
+    const volumeSearchUrl = new URL(`${COMICVINE_API}/search/`);
+    volumeSearchUrl.searchParams.set('api_key', apiKey);
+    volumeSearchUrl.searchParams.set('format', 'json');
+    volumeSearchUrl.searchParams.set('resources', 'volume');
+    volumeSearchUrl.searchParams.set('query', title);
+    volumeSearchUrl.searchParams.set('limit', '10');
+
+    const volumeResponse = await fetch(volumeSearchUrl.toString(), {
+      headers: { 'User-Agent': 'ComicVault/1.0' }
+    });
+
+    if (!volumeResponse.ok) {
+      console.error('ComicVine search failed:', volumeResponse.status);
+      return [];
+    }
+
+    const volumeData = await volumeResponse.json();
+    const volumes = volumeData.results || [];
+
+    if (volumes.length === 0) {
+      console.log('No volumes found');
+      return [];
+    }
+
+    // Filter by publisher if provided
+    let filteredVolumes = volumes;
+    if (publisher) {
+      const publisherLower = publisher.toLowerCase();
+      const publisherFiltered = volumes.filter((v: any) =>
+        v.publisher?.name?.toLowerCase().includes(publisherLower) ||
+        publisherLower.includes(v.publisher?.name?.toLowerCase() || '')
+      );
+      if (publisherFiltered.length > 0) {
+        filteredVolumes = publisherFiltered;
+      }
+    }
+
+    // Limit to top 5 volumes
+    const topVolumes = filteredVolumes.slice(0, 5);
+    const results: SearchResult[] = [];
+
+    // For each volume, fetch the specific issue or first issue
+    for (const volume of topVolumes) {
+      try {
+        const issuesUrl = new URL(`${COMICVINE_API}/issues/`);
+        issuesUrl.searchParams.set('api_key', apiKey);
+        issuesUrl.searchParams.set('format', 'json');
+        issuesUrl.searchParams.set('filter', `volume:${volume.id}`);
+        issuesUrl.searchParams.set('sort', 'issue_number:asc');
+        issuesUrl.searchParams.set('limit', '50');
+
+        const issuesResponse = await fetch(issuesUrl.toString(), {
+          headers: { 'User-Agent': 'ComicVault/1.0' }
+        });
+
+        if (!issuesResponse.ok) continue;
+
+        const issuesData = await issuesResponse.json();
+        const issues = issuesData.results || [];
+
+        if (issues.length === 0) continue;
+
+        // Find matching issue or use first
+        let matchedIssue = issues[0];
+        if (issueNumber) {
+          const cleanNum = issueNumber.toString().replace(/^#/, '').trim();
+          const found = issues.find((i: any) =>
+            i.issue_number === cleanNum ||
+            parseInt(i.issue_number) === parseInt(cleanNum)
+          );
+          if (found) matchedIssue = found;
+        }
+
+        results.push({
+          title: volume.name,
+          issueNumber: matchedIssue.issue_number || '1',
+          volume: volume.start_year ? parseInt(volume.start_year) : undefined,
+          publisher: volume.publisher?.name || 'Unknown',
+          coverDate: matchedIssue.cover_date,
+          coverImageUrl: matchedIssue.image?.medium_url || matchedIssue.image?.original_url,
+          comicvineId: matchedIssue.id?.toString(),
+          description: matchedIssue.description?.replace(/<[^>]*>/g, '').slice(0, 200),
+        });
+      } catch (e) {
+        console.error('Error fetching issues for volume:', volume.id, e);
+      }
+    }
+
+    return results;
+  } catch (error) {
+    console.error('ComicVine search error:', error);
+    return [];
+  }
+}
+
+async function searchWithAI(
+  query: string,
+  lovableApiKey: string
+): Promise<SearchResult[]> {
+  try {
+    const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${lovableApiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'google/gemini-2.5-flash',
+        messages: [
+          {
+            role: 'system',
+            content: `You are a comic book database expert. Given a search query, provide accurate comic book metadata.
+
+Return ONLY valid JSON with this structure:
+{
+  "results": [
+    {
+      "title": "Series Title",
+      "issueNumber": "1",
+      "publisher": "Publisher Name",
+      "coverDate": "YYYY-MM-DD",
+      "description": "Brief description",
+      "isKeyIssue": true/false,
+      "keyIssueReason": "Reason if key issue"
+    }
+  ]
+}
+
+Provide up to 5 matching results, sorted by relevance. Do NOT include coverImageUrl.`
+          },
+          { role: 'user', content: query }
+        ],
+      }),
+    });
+
+    if (!response.ok) return [];
+
+    const data = await response.json();
+    const content = data.choices?.[0]?.message?.content;
+    if (!content) return [];
+
+    const cleanContent = content.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+    const parsed = JSON.parse(cleanContent);
+    return parsed.results || [];
+  } catch (e) {
+    console.error('AI search error:', e);
+    return [];
+  }
+}
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -25,112 +202,36 @@ serve(async (req) => {
 
     console.log('Searching for comic:', { title, issueNumber, publisher, barcode });
 
-    // Use Lovable AI to search and provide comic metadata
+    const COMICVINE_API_KEY = Deno.env.get('COMICVINE_API_KEY');
     const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
-    if (!LOVABLE_API_KEY) {
-      return new Response(
-        JSON.stringify({ error: 'Search service not configured' }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+
+    let results: SearchResult[] = [];
+
+    // Primary: Use ComicVine API
+    if (COMICVINE_API_KEY && title) {
+      results = await searchComicVine(title, issueNumber, publisher, COMICVINE_API_KEY);
+      console.log('ComicVine returned', results.length, 'results');
     }
 
-    const searchQuery = barcode 
-      ? `Find comic book information for UPC barcode: ${barcode}`
-      : `Find comic book information for: ${title}${issueNumber ? ' #' + issueNumber : ''}${publisher ? ' by ' + publisher : ''}`;
-
-    const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${LOVABLE_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'google/gemini-2.5-flash',
-        messages: [
-          {
-            role: 'system',
-            content: `You are a comic book database expert. Given a search query, provide accurate comic book metadata.
-
-Return ONLY valid JSON with this structure:
-{
-  "results": [
-    {
-      "title": "Series Title",
-      "issueNumber": "1",
-      "volume": 1,
-      "publisher": "Publisher Name",
-      "coverDate": "YYYY-MM-DD",
-      "writer": "Writer Name",
-      "artist": "Artist Name",
-      "coverArtist": "Cover Artist Name",
-      "description": "Brief description",
-      "coverImageUrl": "URL to official cover image if known, otherwise null",
-      "isKeyIssue": true/false,
-      "keyIssueReason": "Reason if key issue",
-      "variants": ["List of known variants"]
-    }
-  ],
-  "confidence": "high" | "medium" | "low"
-}
-
-For cover images, use known CDN URLs like:
-- Marvel: https://i.annihil.us/u/prod/marvel/i/mg/...
-- DC: https://images-na.ssl-images-amazon.com/...
-- Or set to null if unknown
-
-Provide up to 5 matching results, sorted by relevance.`
-          },
-          {
-            role: 'user',
-            content: searchQuery
-          }
-        ],
-      }),
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('Search error:', response.status, errorText);
+    // Fallback: Use AI if no ComicVine results or barcode search
+    if (results.length === 0 && LOVABLE_API_KEY) {
+      const searchQuery = barcode
+        ? `Find comic book information for UPC barcode: ${barcode}`
+        : `Find comic book information for: ${title}${issueNumber ? ' #' + issueNumber : ''}${publisher ? ' by ' + publisher : ''}`;
       
-      if (response.status === 429) {
-        return new Response(
-          JSON.stringify({ error: 'Rate limit exceeded. Please try again.' }),
-          { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
-      }
-      
-      return new Response(
-        JSON.stringify({ error: 'Search failed' }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      results = await searchWithAI(searchQuery, LOVABLE_API_KEY);
+      console.log('AI fallback returned', results.length, 'results');
     }
 
-    const data = await response.json();
-    const content = data.choices?.[0]?.message?.content;
-
-    if (!content) {
+    if (results.length === 0) {
       return new Response(
-        JSON.stringify({ error: 'No search results' }),
-        { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        JSON.stringify({ success: false, error: 'No results found', results: [] }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
-
-    let searchResults;
-    try {
-      const cleanContent = content.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
-      searchResults = JSON.parse(cleanContent);
-    } catch (parseError) {
-      console.error('Failed to parse search results:', content);
-      return new Response(
-        JSON.stringify({ error: 'Failed to parse results' }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    console.log('Found', searchResults.results?.length || 0, 'results');
 
     return new Response(
-      JSON.stringify({ success: true, ...searchResults }),
+      JSON.stringify({ success: true, results, confidence: 'high' }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   } catch (error) {

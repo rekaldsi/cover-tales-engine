@@ -5,6 +5,89 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+const COMICVINE_API = 'https://comicvine.gamespot.com/api';
+
+async function fetchComicVineCover(title: string, issueNumber: string, publisher: string, apiKey: string) {
+  try {
+    console.log('Fetching ComicVine data for:', { title, issueNumber, publisher });
+
+    // Search for the volume
+    const volumeSearchUrl = new URL(`${COMICVINE_API}/search/`);
+    volumeSearchUrl.searchParams.set('api_key', apiKey);
+    volumeSearchUrl.searchParams.set('format', 'json');
+    volumeSearchUrl.searchParams.set('resources', 'volume');
+    volumeSearchUrl.searchParams.set('query', title);
+    volumeSearchUrl.searchParams.set('limit', '5');
+
+    const volumeResponse = await fetch(volumeSearchUrl.toString(), {
+      headers: { 'User-Agent': 'ComicVault/1.0' }
+    });
+
+    if (!volumeResponse.ok) {
+      console.error('ComicVine volume search failed:', volumeResponse.status);
+      return null;
+    }
+
+    const volumeData = await volumeResponse.json();
+    const volumes = volumeData.results || [];
+
+    if (volumes.length === 0) {
+      console.log('No ComicVine volumes found');
+      return null;
+    }
+
+    // Find best matching volume (prefer publisher match)
+    let matchedVolume = volumes[0];
+    if (publisher) {
+      const publisherLower = publisher.toLowerCase();
+      const publisherMatch = volumes.find((v: any) => 
+        v.publisher?.name?.toLowerCase().includes(publisherLower) ||
+        publisherLower.includes(v.publisher?.name?.toLowerCase() || '')
+      );
+      if (publisherMatch) matchedVolume = publisherMatch;
+    }
+
+    // Fetch issues from volume
+    const issuesUrl = new URL(`${COMICVINE_API}/issues/`);
+    issuesUrl.searchParams.set('api_key', apiKey);
+    issuesUrl.searchParams.set('format', 'json');
+    issuesUrl.searchParams.set('filter', `volume:${matchedVolume.id}`);
+    issuesUrl.searchParams.set('limit', '100');
+
+    const issuesResponse = await fetch(issuesUrl.toString(), {
+      headers: { 'User-Agent': 'ComicVault/1.0' }
+    });
+
+    if (!issuesResponse.ok) {
+      console.error('ComicVine issues fetch failed');
+      return null;
+    }
+
+    const issuesData = await issuesResponse.json();
+    const issues = issuesData.results || [];
+
+    // Find matching issue
+    const cleanIssueNum = issueNumber?.toString().replace(/^#/, '').trim() || '1';
+    const matchedIssue = issues.find((i: any) => 
+      i.issue_number === cleanIssueNum ||
+      parseInt(i.issue_number) === parseInt(cleanIssueNum)
+    ) || issues[0];
+
+    if (!matchedIssue) return null;
+
+    return {
+      comicvineId: matchedIssue.id.toString(),
+      title: matchedVolume.name,
+      coverImageUrl: matchedIssue.image?.original_url || matchedIssue.image?.medium_url,
+      coverDate: matchedIssue.cover_date,
+      publisher: matchedVolume.publisher?.name,
+    };
+  } catch (error) {
+    console.error('ComicVine fetch error:', error);
+    return null;
+  }
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -21,6 +104,8 @@ serve(async (req) => {
     }
 
     const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
+    const COMICVINE_API_KEY = Deno.env.get('COMICVINE_API_KEY');
+    
     if (!LOVABLE_API_KEY) {
       console.error('LOVABLE_API_KEY not configured');
       return new Response(
@@ -29,9 +114,10 @@ serve(async (req) => {
       );
     }
 
-    console.log('Recognizing comic cover...');
+    console.log('Recognizing comic cover with AI...');
 
-    const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+    // Step 1: Use AI to identify the comic from the image
+    const aiResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${LOVABLE_API_KEY}`,
@@ -97,17 +183,17 @@ JSON schema:
       }),
     });
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('AI gateway error:', response.status, errorText);
+    if (!aiResponse.ok) {
+      const errorText = await aiResponse.text();
+      console.error('AI gateway error:', aiResponse.status, errorText);
       
-      if (response.status === 429) {
+      if (aiResponse.status === 429) {
         return new Response(
           JSON.stringify({ error: 'Rate limit exceeded. Please try again later.' }),
           { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
-      if (response.status === 402) {
+      if (aiResponse.status === 402) {
         return new Response(
           JSON.stringify({ error: 'Service quota exceeded. Please try again later.' }),
           { status: 402, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -120,8 +206,8 @@ JSON schema:
       );
     }
 
-    const data = await response.json();
-    const content = data.choices?.[0]?.message?.content;
+    const aiData = await aiResponse.json();
+    const content = aiData.choices?.[0]?.message?.content;
 
     if (!content) {
       return new Response(
@@ -130,10 +216,9 @@ JSON schema:
       );
     }
 
-    // Parse the JSON response
+    // Parse the AI response
     let comicData;
     try {
-      // Remove any markdown code blocks if present
       const cleanContent = content.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
       comicData = JSON.parse(cleanContent);
     } catch (parseError) {
@@ -144,7 +229,35 @@ JSON schema:
       );
     }
 
-    console.log('Comic recognized:', comicData.title, '#' + comicData.issueNumber);
+    console.log('AI identified:', comicData.title, '#' + comicData.issueNumber);
+
+    // Step 2: Fetch official cover from ComicVine (if API key is configured)
+    if (COMICVINE_API_KEY && comicData.title) {
+      console.log('Fetching official cover from ComicVine...');
+      const comicVineData = await fetchComicVineCover(
+        comicData.title,
+        comicData.issueNumber,
+        comicData.publisher,
+        COMICVINE_API_KEY
+      );
+
+      if (comicVineData) {
+        console.log('ComicVine match found:', comicVineData.coverImageUrl ? 'with cover' : 'no cover');
+        // Merge ComicVine data with AI data (ComicVine takes priority for official data)
+        comicData = {
+          ...comicData,
+          comicvineId: comicVineData.comicvineId,
+          coverImageUrl: comicVineData.coverImageUrl, // Official cover URL
+          title: comicVineData.title || comicData.title,
+          coverDate: comicVineData.coverDate || comicData.coverDate,
+          publisher: comicVineData.publisher || comicData.publisher,
+        };
+      } else {
+        console.log('No ComicVine match, using AI data only');
+      }
+    } else {
+      console.log('ComicVine API key not configured, using AI data only');
+    }
 
     return new Response(
       JSON.stringify({ success: true, comic: comicData }),
