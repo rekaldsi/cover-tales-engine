@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Header } from '@/components/layout/Header';
 import { MobileNav } from '@/components/layout/MobileNav';
 import { AddComicDialog } from '@/components/comics/AddComicDialog';
+import { CommandSearch } from '@/components/search/CommandSearch';
 import { useComicCollection } from '@/hooks/useComicCollection';
 import Insights from './Insights';
 import { useToast } from '@/hooks/use-toast';
@@ -9,7 +10,8 @@ import { useToast } from '@/hooks/use-toast';
 export default function InsightsPage() {
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
-  const { addComic } = useComicCollection();
+  const [searchOpen, setSearchOpen] = useState(false);
+  const { comics, addComic } = useComicCollection();
   const { toast } = useToast();
   
   const handleAddComic = (comic: Parameters<typeof addComic>[0]) => {
@@ -25,6 +27,7 @@ export default function InsightsPage() {
       <Header 
         onAddClick={() => setIsAddDialogOpen(true)}
         onMenuClick={() => setIsMobileNavOpen(true)}
+        onSearchClick={() => setSearchOpen(true)}
       />
       
       <MobileNav 
@@ -40,6 +43,12 @@ export default function InsightsPage() {
         open={isAddDialogOpen}
         onOpenChange={setIsAddDialogOpen}
         onAdd={handleAddComic}
+      />
+
+      <CommandSearch
+        open={searchOpen}
+        onOpenChange={setSearchOpen}
+        comics={comics}
       />
     </div>
   );

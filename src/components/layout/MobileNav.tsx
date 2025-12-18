@@ -1,4 +1,4 @@
-import { Home, Library, TrendingUp, X } from 'lucide-react';
+import { Home, Library, TrendingUp, Users, X } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 
 interface MobileNavProps {
@@ -44,6 +44,14 @@ export function MobileNav({ isOpen, onClose }: MobileNavProps) {
             onClick={onClose}
           >
             Collection
+          </MobileNavLink>
+          <MobileNavLink 
+            to="/creators" 
+            icon={Users} 
+            active={location.pathname === '/creators'} 
+            onClick={onClose}
+          >
+            Creators
           </MobileNavLink>
           <MobileNavLink 
             to="/insights" 
