@@ -3,7 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { Comic, CollectionStats, ComicEra, getEraFromDate } from '@/types/comic';
 
-const STORAGE_KEY = 'comic-collection';
+const STORAGE_KEY = 'comic-collection-v3'; // Force refresh with working cover images
 
 // Sample data for demo (used when not authenticated)
 const SAMPLE_COMICS: Comic[] = [
@@ -19,6 +19,7 @@ const SAMPLE_COMICS: Comic[] = [
     writer: 'David Michelinie',
     artist: 'Todd McFarlane',
     coverArtist: 'Todd McFarlane',
+    coverImage: 'https://images.unsplash.com/photo-1618519764620-7403abdbdfe9?w=300&h=450&fit=crop',
     gradeStatus: 'cgc',
     grade: '9.4',
     certNumber: '1234567890',
@@ -39,6 +40,7 @@ const SAMPLE_COMICS: Comic[] = [
     writer: 'Chris Claremont',
     artist: 'Mike Collins',
     coverArtist: 'Andy Kubert',
+    coverImage: 'https://images.unsplash.com/photo-1612036782180-6f0b6cd846fe?w=300&h=450&fit=crop',
     gradeStatus: 'raw',
     purchasePrice: 75,
     currentValue: 350,
@@ -57,6 +59,7 @@ const SAMPLE_COMICS: Comic[] = [
     writer: 'Jim Starlin',
     artist: 'Dave Cockrum',
     coverArtist: 'Todd McFarlane',
+    coverImage: 'https://images.unsplash.com/photo-1531259683007-016a7b628fc3?w=300&h=450&fit=crop',
     gradeStatus: 'cgc',
     grade: '9.8',
     certNumber: '9876543210',
@@ -77,6 +80,7 @@ const SAMPLE_COMICS: Comic[] = [
     writer: 'Brian K. Vaughan',
     artist: 'Fiona Staples',
     coverArtist: 'Fiona Staples',
+    coverImage: 'https://images.unsplash.com/photo-1601645191163-3fc0d5d64e35?w=300&h=450&fit=crop',
     gradeStatus: 'cgc',
     grade: '9.6',
     purchasePrice: 150,
@@ -96,6 +100,7 @@ const SAMPLE_COMICS: Comic[] = [
     writer: 'Rob Liefeld & Fabian Nicieza',
     artist: 'Rob Liefeld',
     coverArtist: 'Rob Liefeld',
+    coverImage: 'https://images.unsplash.com/photo-1620336655052-b57986f5a26a?w=300&h=450&fit=crop',
     gradeStatus: 'cgc',
     grade: '9.2',
     certNumber: '5555555555',

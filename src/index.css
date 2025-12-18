@@ -96,27 +96,9 @@
 
 @layer components {
   .comic-card {
-    @apply relative overflow-hidden rounded-lg bg-card;
+    @apply relative overflow-hidden rounded-lg bg-card border border-border/50;
     background: var(--gradient-card);
-    box-shadow: var(--shadow-card);
-    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   }
-
-  .comic-card:hover {
-    transform: translateY(-4px) scale(1.02);
-    box-shadow: var(--shadow-glow);
-  }
-
-  .era-badge {
-    @apply px-2 py-0.5 rounded text-xs font-semibold uppercase tracking-wider;
-  }
-
-  .era-golden { background: hsl(var(--era-golden) / 0.2); color: hsl(var(--era-golden)); }
-  .era-silver { background: hsl(var(--era-silver) / 0.2); color: hsl(var(--era-silver)); }
-  .era-bronze { background: hsl(var(--era-bronze) / 0.2); color: hsl(var(--era-bronze)); }
-  .era-copper { background: hsl(var(--era-copper) / 0.2); color: hsl(var(--era-copper)); }
-  .era-modern { background: hsl(var(--era-modern) / 0.2); color: hsl(var(--era-modern)); }
-  .era-current { background: hsl(var(--era-current) / 0.2); color: hsl(var(--era-current)); }
 
   .gradient-text {
     background: var(--gradient-hero);
