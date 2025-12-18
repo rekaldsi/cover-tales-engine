@@ -86,9 +86,17 @@ Deno.serve(async (req) => {
         const errorText = await response.text();
         console.error(`GoCollect API error: ${response.status} - ${errorText}`);
         
-        // If 401/403, the API key might be wrong or expired
+        // Handle specific error codes with user-friendly messages
         if (response.status === 401 || response.status === 403) {
           throw new Error('GoCollect API authentication failed. Please check your API key.');
+        }
+        
+        if (response.status === 522 || response.status === 524) {
+          throw new Error('GoCollect servers are temporarily unavailable. Please try again in a few minutes.');
+        }
+        
+        if (response.status >= 500) {
+          throw new Error('GoCollect is experiencing server issues. Please try again later.');
         }
         
         throw new Error(`GoCollect API error: ${response.status}`);
