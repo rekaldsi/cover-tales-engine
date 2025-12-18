@@ -29,7 +29,7 @@ export function Header({ onAddClick, onMenuClick, onSearchClick }: HeaderProps) 
             </div>
             <div className="hidden sm:block">
               <h1 className="font-display text-2xl tracking-wide gradient-text">
-                COMICVAULT
+                KØDEX
               </h1>
             </div>
           </Link>
