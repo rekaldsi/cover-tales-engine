@@ -1,5 +1,6 @@
 import { useComicCollection } from '@/hooks/useComicCollection';
 import { StatCard } from '@/components/comics/StatCard';
+import { GradingOpportunities } from '@/components/insights/GradingOpportunities';
 import { TrendingUp, TrendingDown, Star, Zap, Target, DollarSign } from 'lucide-react';
 
 export default function Insights() {
@@ -74,6 +75,9 @@ export default function Insights() {
           accentColor="gold"
         />
       </section>
+
+      {/* Grading Opportunities */}
+      <GradingOpportunities comics={comics} />
       
       {/* Most Valuable */}
       <section className="grid lg:grid-cols-2 gap-6">
@@ -170,15 +174,6 @@ export default function Insights() {
             ))}
           </div>
         )}
-      </section>
-      
-      {/* Coming Soon */}
-      <section className="text-center py-12 border border-dashed border-border rounded-xl">
-        <Zap className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-        <h3 className="text-lg font-semibold mb-2">More Insights Coming Soon</h3>
-        <p className="text-muted-foreground max-w-md mx-auto">
-          Market trend analysis, price alerts, and AI-powered recommendations are on the way.
-        </p>
       </section>
     </div>
   );

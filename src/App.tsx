@@ -7,6 +7,7 @@ import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import Index from "./pages/Index";
 import CollectionPage from "./pages/CollectionPage";
 import CreatorsPage from "./pages/CreatorsPage";
+import SigningPlannerPage from "./pages/SigningPlannerPage";
 import InsightsPage from "./pages/InsightsPage";
 import Auth from "./pages/Auth";
 import NotFound from "./pages/NotFound";
@@ -37,6 +38,7 @@ function AppRoutes() {
       <Route path="/" element={<ProtectedRoute><Index /></ProtectedRoute>} />
       <Route path="/collection" element={<ProtectedRoute><CollectionPage /></ProtectedRoute>} />
       <Route path="/creators" element={<ProtectedRoute><CreatorsPage /></ProtectedRoute>} />
+      <Route path="/signings" element={<ProtectedRoute><SigningPlannerPage /></ProtectedRoute>} />
       <Route path="/insights" element={<ProtectedRoute><InsightsPage /></ProtectedRoute>} />
       <Route path="*" element={<NotFound />} />
     </Routes>

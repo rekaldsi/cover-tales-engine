@@ -132,6 +132,15 @@ function mapDbToComic(row: any): Comic {
     notes: row.notes,
     isKeyIssue: row.is_key_issue || false,
     keyIssueReason: row.key_issue_reason,
+    // Signature fields
+    isSigned: row.is_signed || false,
+    signedBy: row.signed_by,
+    signedDate: row.signed_date,
+    signatureType: row.signature_type,
+    // Enhanced data
+    firstAppearanceOf: row.first_appearance_of,
+    characters: row.characters,
+    mediaTieIn: row.media_tie_in,
   };
 }
 
@@ -159,6 +168,15 @@ function mapComicToDb(comic: Omit<Comic, 'id' | 'dateAdded'>, userId: string) {
     notes: comic.notes,
     is_key_issue: comic.isKeyIssue || false,
     key_issue_reason: comic.keyIssueReason,
+    // Signature fields
+    is_signed: comic.isSigned || false,
+    signed_by: comic.signedBy,
+    signed_date: comic.signedDate,
+    signature_type: comic.signatureType,
+    // Enhanced data
+    first_appearance_of: comic.firstAppearanceOf,
+    characters: comic.characters,
+    media_tie_in: comic.mediaTieIn,
   };
 }
 
@@ -252,6 +270,15 @@ export function useComicCollection() {
       if (updates.artist !== undefined) dbUpdates.artist = updates.artist;
       if (updates.coverArtist !== undefined) dbUpdates.cover_artist = updates.coverArtist;
       if (updates.coverDate !== undefined) dbUpdates.cover_date = updates.coverDate;
+      // Signature fields
+      if (updates.isSigned !== undefined) dbUpdates.is_signed = updates.isSigned;
+      if (updates.signedBy !== undefined) dbUpdates.signed_by = updates.signedBy;
+      if (updates.signedDate !== undefined) dbUpdates.signed_date = updates.signedDate;
+      if (updates.signatureType !== undefined) dbUpdates.signature_type = updates.signatureType;
+      // Enhanced data
+      if (updates.firstAppearanceOf !== undefined) dbUpdates.first_appearance_of = updates.firstAppearanceOf;
+      if (updates.characters !== undefined) dbUpdates.characters = updates.characters;
+      if (updates.mediaTieIn !== undefined) dbUpdates.media_tie_in = updates.mediaTieIn;
 
       const { error } = await supabase
         .from('comics')
