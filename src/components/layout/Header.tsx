@@ -40,7 +40,7 @@ export function Header({ onAddClick, onMenuClick, onSearchClick }: HeaderProps) 
           <NavLink to="/collection" active={location.pathname === '/collection'}>Collection</NavLink>
           <NavLink to="/creators" active={location.pathname === '/creators'}>Creators</NavLink>
           <NavLink to="/insights" active={location.pathname === '/insights'}>Insights</NavLink>
-          <NavLink to="/signing-planner" active={location.pathname === '/signing-planner'}>Signings</NavLink>
+          <NavLink to="/signings" active={location.pathname === '/signings'}>Signings</NavLink>
         </nav>
 
         <div className="flex items-center gap-2">
