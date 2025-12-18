@@ -6,7 +6,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Comic, ComicEra, ERA_LABELS, PUBLISHERS } from '@/types/comic';
-import { Grid3X3, List, Search, Filter, SlidersHorizontal } from 'lucide-react';
+import { Grid3X3, List, Search, Filter, SlidersHorizontal, Download } from 'lucide-react';
+import { exportToCSV, exportToJSON } from '@/utils/exportCollection';
 
 type ViewMode = 'grid' | 'list';
 type SortOption = 'dateAdded' | 'title' | 'value' | 'issue';
@@ -75,9 +76,20 @@ export default function Collection() {
         </div>
         
         <div className="flex items-center gap-2">
+          <Select onValueChange={(v) => v === 'csv' ? exportToCSV(comics) : exportToJSON(comics)}>
+            <SelectTrigger className="w-auto gap-2 min-h-[44px]">
+              <Download className="h-4 w-4" />
+              <span className="hidden sm:inline">Export</span>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="csv">Export CSV</SelectItem>
+              <SelectItem value="json">Export JSON</SelectItem>
+            </SelectContent>
+          </Select>
           <Button
             variant={viewMode === 'grid' ? 'default' : 'outline'}
             size="icon"
+            className="min-h-[44px] min-w-[44px]"
             onClick={() => setViewMode('grid')}
           >
             <Grid3X3 className="h-4 w-4" />
@@ -85,6 +97,7 @@ export default function Collection() {
           <Button
             variant={viewMode === 'list' ? 'default' : 'outline'}
             size="icon"
+            className="min-h-[44px] min-w-[44px]"
             onClick={() => setViewMode('list')}
           >
             <List className="h-4 w-4" />

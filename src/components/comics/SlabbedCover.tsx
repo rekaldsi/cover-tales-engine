@@ -12,11 +12,11 @@ interface SlabbedCoverProps {
   className?: string;
 }
 
-const SLAB_COLORS: Record<GradeStatus, { border: string; label: string }> = {
-  raw: { border: 'border-border', label: '' },
-  cgc: { border: 'border-blue-500/60', label: 'CGC' },
-  cbcs: { border: 'border-red-500/60', label: 'CBCS' },
-  pgx: { border: 'border-amber-500/60', label: 'PGX' },
+const SLAB_COLORS: Record<GradeStatus, { border: string; bg: string; label: string }> = {
+  raw: { border: 'border-border', bg: '', label: '' },
+  cgc: { border: 'border-blue-500/40', bg: 'bg-blue-500', label: 'CGC' },
+  cbcs: { border: 'border-red-500/40', bg: 'bg-red-500', label: 'CBCS' },
+  pgx: { border: 'border-amber-500/40', bg: 'bg-amber-500', label: 'PGX' },
 };
 
 export function SlabbedCover({
@@ -38,6 +38,7 @@ export function SlabbedCover({
         src={coverUrl}
         alt={`${title} #${issueNumber}`}
         className="w-full h-full object-cover"
+        loading="lazy"
       />
     ) : (
       <div className="w-full h-full bg-muted flex items-center justify-center">
@@ -46,15 +47,15 @@ export function SlabbedCover({
     )
   );
 
-  // Key issue indicator
+  // Key issue indicator - simplified gold star only
   const KeyIndicator = () => isKeyIssue ? (
-    <div className="absolute bottom-2 right-2 z-10">
-      <Star className="h-4 w-4 fill-amber-500 text-amber-500" />
+    <div className="absolute bottom-1.5 right-1.5 z-10">
+      <Star className="h-3.5 w-3.5 fill-amber-500 text-amber-500" />
     </div>
   ) : null;
 
   if (!isGraded) {
-    // Raw comic - simple cover
+    // Raw comic - simple cover with rounded corners
     return (
       <div className={cn('relative aspect-[2/3] rounded overflow-hidden', className)}>
         <CoverImage />
@@ -63,25 +64,24 @@ export function SlabbedCover({
     );
   }
 
-  // Graded comic - with slab frame
+  // Graded comic - simplified slab frame (2px border instead of 4px)
   return (
     <div className={cn('relative', className)}>
       <div className={cn(
-        'relative rounded border-2 p-1',
+        'relative rounded border p-0.5',
         colors.border
       )}>
-        {/* Consolidated label: Company + Grade */}
+        {/* Consolidated label: Company + Grade - smaller and cleaner */}
         <div className={cn(
-          'absolute -top-2.5 left-1/2 -translate-x-1/2 px-2 py-0.5 rounded text-[10px] font-bold tracking-wide z-10',
-          gradeStatus === 'cgc' && 'bg-blue-500 text-white',
-          gradeStatus === 'cbcs' && 'bg-red-500 text-white',
-          gradeStatus === 'pgx' && 'bg-amber-500 text-black',
+          'absolute -top-2 left-1/2 -translate-x-1/2 px-1.5 py-0.5 rounded text-[9px] font-semibold tracking-wide z-10',
+          colors.bg,
+          gradeStatus === 'pgx' ? 'text-black' : 'text-white',
         )}>
           {colors.label} {grade}
         </div>
 
         {/* Cover */}
-        <div className="relative rounded overflow-hidden bg-background">
+        <div className="relative rounded-sm overflow-hidden bg-background">
           <div className="aspect-[2/3]">
             <CoverImage />
           </div>

@@ -128,23 +128,32 @@ serve(async (req) => {
         messages: [
           {
             role: 'system',
-            content: `You are an expert comic book identifier. Analyze comic book covers and return structured JSON data.
+            content: `You are an expert comic book identifier with deep knowledge of comics, grading, and collectibles. Analyze comic book covers and return structured JSON data.
 
 IMPORTANT: Return ONLY valid JSON, no markdown or explanation.
 
+CRITICAL INSTRUCTIONS FOR GRADED SLABS:
+- If you see a comic in a plastic holder/slab, look for:
+  - CGC: Blue label with "CGC" text, grade in large numbers, cert number at bottom
+  - CBCS: Red/burgundy label with "CBCS" text
+  - PGX: Gold/yellow label with "PGX" text
+- Read the grade carefully (e.g., 9.8, 9.6, 9.4, 9.2, 9.0, 8.5, 8.0, etc.)
+- The certification number is usually 10 digits on CGC labels
+- Look for "Signature Series" or "SS" which indicates authenticated signatures
+
 For comic covers, identify:
-- title: The series title (e.g., "Amazing Spider-Man", "Batman")
-- issueNumber: The issue number as a string
-- publisher: The publisher (Marvel Comics, DC Comics, Image Comics, etc.)
-- variant: Variant type if applicable (e.g., "Cover A", "1:25 Variant", "Newsstand", "Direct Edition")
-- printNumber: Print number (1 for first print, 2 for second, etc.)
-- isGraded: Whether this appears to be in a grading slab (CGC, CBCS, PGX)
-- gradingCompany: If graded, which company (cgc, cbcs, pgx)
-- grade: If visible, the numeric grade
-- certNumber: If visible, the certification number
-- coverDate: Estimated cover date in YYYY-MM format if visible
-- isKeyIssue: Whether this is likely a key issue
-- keyIssueReason: If key issue, why (first appearance, death, etc.)
+- title: The series title (e.g., "Amazing Spider-Man", "Batman", "Uncanny X-Men")
+- issueNumber: The issue number as a string (look for "#" followed by number)
+- publisher: The publisher (Marvel Comics, DC Comics, Image Comics, Dark Horse, IDW, Valiant, etc.)
+- variant: Variant type if applicable (e.g., "Cover A", "Cover B", "1:25 Variant", "Newsstand", "Direct Edition", "Virgin", "Foil")
+- printNumber: Print number (1 for first print, 2 for second, etc.) - look for "2nd Printing" text
+- isGraded: true if in a grading slab (CGC, CBCS, PGX plastic holder)
+- gradingCompany: If graded, which company (cgc, cbcs, pgx) - use lowercase
+- grade: If graded, the numeric grade as shown on label (e.g., "9.8", "9.6")
+- certNumber: If graded, the full certification number from the label
+- coverDate: Cover date in YYYY-MM format if visible on cover
+- isKeyIssue: Whether this is likely a key issue (first appearances, deaths, origins, etc.)
+- keyIssueReason: If key issue, why (e.g., "1st appearance of Venom", "Death of Gwen Stacy")
 - confidence: Your confidence level (high, medium, low)
 
 JSON schema:

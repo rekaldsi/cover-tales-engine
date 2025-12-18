@@ -12,11 +12,12 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
-import { Barcode, Camera, Search, Edit, Loader2, ArrowLeft, Check } from 'lucide-react';
+import { Barcode, Camera, Search, Edit, Loader2, ArrowLeft, Check, Clock, Zap } from 'lucide-react';
 import { BarcodeScanner } from './BarcodeScanner';
 import { CoverScanner } from './CoverScanner';
 import { ComicSearch } from './ComicSearch';
 import { useToast } from '@/hooks/use-toast';
+import { useRecentScans } from '@/hooks/useRecentScans';
 import { supabase } from '@/integrations/supabase/client';
 import { PUBLISHERS, GRADE_OPTIONS, getEraFromDate, type Comic, type GradeStatus } from '@/types/comic';
 
@@ -52,7 +53,9 @@ export function ScannerDialog({ open, onOpenChange, onAdd }: ScannerDialogProps)
   const [activeTab, setActiveTab] = useState('barcode');
   const [scannedData, setScannedData] = useState<ScannedData | null>(null);
   const [isSearching, setIsSearching] = useState(false);
+  const [quickAddMode, setQuickAddMode] = useState(false);
   const { toast } = useToast();
+  const { recentScans, addRecentScan } = useRecentScans();
 
   // Form state for details step
   const [formData, setFormData] = useState<Partial<Comic>>({
@@ -65,7 +68,26 @@ export function ScannerDialog({ open, onOpenChange, onAdd }: ScannerDialogProps)
     setActiveTab('barcode');
     setScannedData(null);
     setFormData({ gradeStatus: 'raw', isKeyIssue: false });
+    setQuickAddMode(false);
   }, []);
+
+  // Quick add from recent scans
+  const handleQuickAdd = useCallback((scan: typeof recentScans[0]) => {
+    onAdd({
+      title: scan.title,
+      issueNumber: scan.issueNumber,
+      publisher: scan.publisher,
+      coverImage: scan.coverImageUrl,
+      gradeStatus: 'raw',
+      isKeyIssue: false,
+      era: 'modern',
+    });
+    
+    toast({
+      title: 'Comic Added!',
+      description: `${scan.title} #${scan.issueNumber} added to your collection.`,
+    });
+  }, [onAdd, toast]);
 
   const handleClose = useCallback(() => {
     resetState();
@@ -190,6 +212,14 @@ export function ScannerDialog({ open, onOpenChange, onAdd }: ScannerDialogProps)
       return;
     }
 
+    // Add to recent scans for quick re-add
+    addRecentScan({
+      title: formData.title!,
+      issueNumber: formData.issueNumber || '',
+      publisher: formData.publisher!,
+      coverImageUrl: formData.coverImage,
+    });
+
     onAdd({
       title: formData.title!,
       issueNumber: formData.issueNumber || '',
@@ -218,7 +248,7 @@ export function ScannerDialog({ open, onOpenChange, onAdd }: ScannerDialogProps)
     });
 
     handleClose();
-  }, [formData, onAdd, toast, handleClose]);
+  }, [formData, onAdd, toast, handleClose, addRecentScan]);
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
@@ -243,58 +273,93 @@ export function ScannerDialog({ open, onOpenChange, onAdd }: ScannerDialogProps)
 
         {/* Step 1: Scan/Search */}
         {step === 'scan' && (
-          <Tabs value={activeTab} onValueChange={setActiveTab}>
-            <TabsList className="grid w-full grid-cols-4">
-              <TabsTrigger value="barcode" className="text-xs">
-                <Barcode className="w-4 h-4 mr-1" />
-                Barcode
-              </TabsTrigger>
-              <TabsTrigger value="cover" className="text-xs">
-                <Camera className="w-4 h-4 mr-1" />
-                Cover
-              </TabsTrigger>
-              <TabsTrigger value="search" className="text-xs">
-                <Search className="w-4 h-4 mr-1" />
-                Search
-              </TabsTrigger>
-              <TabsTrigger value="manual" className="text-xs">
-                <Edit className="w-4 h-4 mr-1" />
-                Manual
-              </TabsTrigger>
-            </TabsList>
-
-            <TabsContent value="barcode" className="mt-4">
-              {isSearching ? (
-                <div className="flex items-center justify-center py-12">
-                  <Loader2 className="w-8 h-8 animate-spin text-primary" />
+          <div className="space-y-4">
+            {/* Recent Scans - Quick Re-add */}
+            {recentScans.length > 0 && (
+              <div className="space-y-2">
+                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <Clock className="w-3 h-3" />
+                  <span>Recent - Tap to quick add</span>
                 </div>
-              ) : (
-                <BarcodeScanner onScan={handleBarcodeScan} />
-              )}
-            </TabsContent>
-
-            <TabsContent value="cover" className="mt-4">
-              <CoverScanner onRecognize={handleCoverRecognize} />
-            </TabsContent>
-
-            <TabsContent value="search" className="mt-4">
-              <ComicSearch onSelect={handleSearchSelect} />
-            </TabsContent>
-
-            <TabsContent value="manual" className="mt-4">
-              <div className="space-y-4">
-                <p className="text-sm text-muted-foreground">
-                  Enter comic details manually
-                </p>
-                <Button onClick={() => {
-                  setScannedData({ title: '', issueNumber: '', publisher: '' });
-                  setStep('details');
-                }}>
-                  Continue to Form
-                </Button>
+                <div className="flex gap-2 overflow-x-auto pb-2">
+                  {recentScans.slice(0, 3).map((scan) => (
+                    <button
+                      key={scan.id}
+                      onClick={() => handleQuickAdd(scan)}
+                      className="flex-shrink-0 flex items-center gap-2 px-3 py-2 rounded-lg bg-secondary/50 border border-border/50 min-h-[44px] active:bg-secondary"
+                    >
+                      {scan.coverImageUrl ? (
+                        <img src={scan.coverImageUrl} alt="" className="w-6 h-8 rounded object-cover" />
+                      ) : (
+                        <div className="w-6 h-8 rounded bg-muted" />
+                      )}
+                      <div className="text-left">
+                        <p className="text-xs font-medium truncate max-w-[100px]">{scan.title}</p>
+                        <p className="text-[10px] text-muted-foreground">#{scan.issueNumber}</p>
+                      </div>
+                      <Zap className="w-3 h-3 text-accent" />
+                    </button>
+                  ))}
+                </div>
               </div>
-            </TabsContent>
-          </Tabs>
+            )}
+
+            <Tabs value={activeTab} onValueChange={setActiveTab}>
+              <TabsList className="grid w-full grid-cols-4">
+                <TabsTrigger value="barcode" className="text-xs min-h-[44px]">
+                  <Barcode className="w-4 h-4 mr-1" />
+                  Barcode
+                </TabsTrigger>
+                <TabsTrigger value="cover" className="text-xs min-h-[44px]">
+                  <Camera className="w-4 h-4 mr-1" />
+                  Cover
+                </TabsTrigger>
+                <TabsTrigger value="search" className="text-xs min-h-[44px]">
+                  <Search className="w-4 h-4 mr-1" />
+                  Search
+                </TabsTrigger>
+                <TabsTrigger value="manual" className="text-xs min-h-[44px]">
+                  <Edit className="w-4 h-4 mr-1" />
+                  Manual
+                </TabsTrigger>
+              </TabsList>
+
+              <TabsContent value="barcode" className="mt-4">
+                {isSearching ? (
+                  <div className="flex items-center justify-center py-12">
+                    <Loader2 className="w-8 h-8 animate-spin text-primary" />
+                  </div>
+                ) : (
+                  <BarcodeScanner onScan={handleBarcodeScan} />
+                )}
+              </TabsContent>
+
+              <TabsContent value="cover" className="mt-4">
+                <CoverScanner onRecognize={handleCoverRecognize} />
+              </TabsContent>
+
+              <TabsContent value="search" className="mt-4">
+                <ComicSearch onSelect={handleSearchSelect} />
+              </TabsContent>
+
+              <TabsContent value="manual" className="mt-4">
+                <div className="space-y-4">
+                  <p className="text-sm text-muted-foreground">
+                    Enter comic details manually
+                  </p>
+                  <Button 
+                    onClick={() => {
+                      setScannedData({ title: '', issueNumber: '', publisher: '' });
+                      setStep('details');
+                    }}
+                    className="w-full min-h-[44px]"
+                  >
+                    Continue to Form
+                  </Button>
+                </div>
+              </TabsContent>
+            </Tabs>
+          </div>
         )}
 
         {/* Step 2: Confirm Match */}
