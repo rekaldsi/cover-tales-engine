@@ -14,7 +14,105 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      comics: {
+        Row: {
+          artist: string | null
+          barcode: string | null
+          cert_number: string | null
+          comicvine_id: string | null
+          cover_artist: string | null
+          cover_date: string | null
+          cover_image_url: string | null
+          created_at: string
+          current_value: number | null
+          era: string | null
+          grade: number | null
+          grade_status: string | null
+          grader_notes: string | null
+          id: string
+          is_key_issue: boolean | null
+          issue_number: string | null
+          key_issue_reason: string | null
+          label_type: string | null
+          location: string | null
+          notes: string | null
+          print_number: number | null
+          publisher: string | null
+          purchase_date: string | null
+          purchase_price: number | null
+          title: string
+          updated_at: string
+          user_id: string
+          variant_type: string | null
+          volume: string | null
+          writer: string | null
+        }
+        Insert: {
+          artist?: string | null
+          barcode?: string | null
+          cert_number?: string | null
+          comicvine_id?: string | null
+          cover_artist?: string | null
+          cover_date?: string | null
+          cover_image_url?: string | null
+          created_at?: string
+          current_value?: number | null
+          era?: string | null
+          grade?: number | null
+          grade_status?: string | null
+          grader_notes?: string | null
+          id?: string
+          is_key_issue?: boolean | null
+          issue_number?: string | null
+          key_issue_reason?: string | null
+          label_type?: string | null
+          location?: string | null
+          notes?: string | null
+          print_number?: number | null
+          publisher?: string | null
+          purchase_date?: string | null
+          purchase_price?: number | null
+          title: string
+          updated_at?: string
+          user_id: string
+          variant_type?: string | null
+          volume?: string | null
+          writer?: string | null
+        }
+        Update: {
+          artist?: string | null
+          barcode?: string | null
+          cert_number?: string | null
+          comicvine_id?: string | null
+          cover_artist?: string | null
+          cover_date?: string | null
+          cover_image_url?: string | null
+          created_at?: string
+          current_value?: number | null
+          era?: string | null
+          grade?: number | null
+          grade_status?: string | null
+          grader_notes?: string | null
+          id?: string
+          is_key_issue?: boolean | null
+          issue_number?: string | null
+          key_issue_reason?: string | null
+          label_type?: string | null
+          location?: string | null
+          notes?: string | null
+          print_number?: number | null
+          publisher?: string | null
+          purchase_date?: string | null
+          purchase_price?: number | null
+          title?: string
+          updated_at?: string
+          user_id?: string
+          variant_type?: string | null
+          volume?: string | null
+          writer?: string | null
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
