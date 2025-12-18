@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
+import { useToast } from '@/hooks/use-toast';
 import { Comic, CollectionStats, ComicEra, getEraFromDate } from '@/types/comic';
 
 const STORAGE_KEY = 'comic-collection-v4';
@@ -92,6 +93,7 @@ function mapComicToDb(comic: Omit<Comic, 'id' | 'dateAdded'>, userId: string) {
 
 export function useComicCollection() {
   const { user } = useAuth();
+  const { toast } = useToast();
   const [comics, setComics] = useState<Comic[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -125,35 +127,38 @@ export function useComicCollection() {
   }, [fetchComics]);
 
   const addComic = useCallback(async (comic: Omit<Comic, 'id' | 'dateAdded'>) => {
-    if (user) {
-      // Add to Supabase
-      const { data, error } = await supabase
-        .from('comics')
-        .insert(mapComicToDb(comic, user.id))
-        .select()
-        .single();
-
-      if (error) {
-        console.error('Error adding comic:', error);
-        throw error;
-      }
-
-      const newComic = mapDbToComic(data);
-      setComics(prev => [newComic, ...prev]);
-      return newComic;
-    } else {
-      // Add to localStorage
-      const newComic: Comic = {
-        ...comic,
-        id: Date.now().toString(),
-        dateAdded: new Date().toISOString().split('T')[0],
-      };
-      const updated = [newComic, ...comics];
-      setComics(updated);
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
-      return newComic;
+    if (!user) {
+      // User is not authenticated - show error and don't save
+      console.error('addComic called without authenticated user - data will NOT be saved!');
+      toast({
+        title: 'Login Required',
+        description: 'Please log in to save comics to your collection.',
+        variant: 'destructive',
+      });
+      throw new Error('Authentication required to save comics');
     }
-  }, [user, comics]);
+
+    // Add to Supabase
+    const { data, error } = await supabase
+      .from('comics')
+      .insert(mapComicToDb(comic, user.id))
+      .select()
+      .single();
+
+    if (error) {
+      console.error('Error adding comic to database:', error);
+      toast({
+        title: 'Save Failed',
+        description: `Could not save comic: ${error.message}`,
+        variant: 'destructive',
+      });
+      throw error;
+    }
+
+    const newComic = mapDbToComic(data);
+    setComics(prev => [newComic, ...prev]);
+    return newComic;
+  }, [user, toast]);
 
   const updateComic = useCallback(async (id: string, updates: Partial<Comic>) => {
     if (user) {
