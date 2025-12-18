@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useComicCollection } from '@/hooks/useComicCollection';
 import { useBackgroundEnrichment } from '@/hooks/useBackgroundEnrichment';
 import { usePortfolioSnapshots } from '@/hooks/usePortfolioSnapshots';
+import { useAuth } from '@/contexts/AuthContext';
 import { StatCard } from '@/components/comics/StatCard';
 import { EraChart } from '@/components/comics/EraChart';
 import { RecentlyAddedCarousel } from '@/components/comics/RecentlyAddedCarousel';
@@ -10,9 +12,10 @@ import { SigningRecommendations } from '@/components/signings/SigningRecommendat
 import { GoCollectImport } from '@/components/import/GoCollectImport';
 import { EmptyCollectionState } from '@/components/dashboard/EmptyCollectionState';
 import { PortfolioChart } from '@/components/dashboard/PortfolioChart';
-import { Comic } from '@/types/comic';
-import { Library, DollarSign, Star, TrendingUp, Loader2 } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
+import { Comic } from '@/types/comic';
+import { Library, DollarSign, Star, TrendingUp, Loader2, LogIn } from 'lucide-react';
 
 interface DashboardProps {
   onAddClick?: () => void;
@@ -23,6 +26,8 @@ export default function Dashboard({ onAddClick, onHuntingClick }: DashboardProps
   const { comics, getStats, deleteComic, updateComic, refetch } = useComicCollection();
   const { progress, isEnriching } = useBackgroundEnrichment(comics, updateComic);
   const { snapshots, trend, saveSnapshot } = usePortfolioSnapshots();
+  const { user } = useAuth();
+  const navigate = useNavigate();
   const stats = getStats();
   const [selectedComic, setSelectedComic] = useState<Comic | null>(null);
   
@@ -65,6 +70,24 @@ export default function Dashboard({ onAddClick, onHuntingClick }: DashboardProps
             </p>
           </div>
         </section>
+
+        {/* Login Prompt for unauthenticated users */}
+        {!user && (
+          <div className="mb-6 p-4 bg-primary/10 border border-primary/30 rounded-lg flex flex-col sm:flex-row items-start sm:items-center gap-4">
+            <div className="flex-1">
+              <h3 className="font-medium text-foreground flex items-center gap-2">
+                <LogIn className="w-4 h-4" />
+                Sign in to save your collection
+              </h3>
+              <p className="text-sm text-muted-foreground mt-1">
+                Create an account to store your comics and access them from any device.
+              </p>
+            </div>
+            <Button onClick={() => navigate('/auth')} className="min-h-[44px]">
+              Sign In / Sign Up
+            </Button>
+          </div>
+        )}
         
         <EmptyCollectionState onAddClick={onAddClick || (() => {})} onHuntingClick={onHuntingClick} />
       </div>

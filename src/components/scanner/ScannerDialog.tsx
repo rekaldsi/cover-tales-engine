@@ -13,12 +13,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Barcode, Camera, Search, Edit, Loader2, ArrowLeft, Check, Clock, Zap, ImageIcon } from 'lucide-react';
+import { Barcode, Camera, Search, Edit, Loader2, ArrowLeft, Check, Clock, Zap, ImageIcon, LogIn } from 'lucide-react';
 import { BarcodeScanner, type ParsedUPC } from './BarcodeScanner';
 import { CoverScanner } from './CoverScanner';
 import { ComicSearch } from './ComicSearch';
 import { useToast } from '@/hooks/use-toast';
 import { useRecentScans } from '@/hooks/useRecentScans';
+import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { PUBLISHERS, GRADE_OPTIONS, getEraFromDate, type Comic, type GradeStatus } from '@/types/comic';
 
@@ -66,6 +67,7 @@ export function ScannerDialog({ open, onOpenChange, onAdd }: ScannerDialogProps)
   const [isSearching, setIsSearching] = useState(false);
   const [quickAddMode, setQuickAddMode] = useState(false);
   const { toast } = useToast();
+  const { user } = useAuth();
   const { recentScans, addRecentScan } = useRecentScans();
 
   // Cover selection state
@@ -324,6 +326,16 @@ export function ScannerDialog({ open, onOpenChange, onAdd }: ScannerDialogProps)
 
   // Final submission
   const handleSubmit = useCallback(() => {
+    // Check authentication first
+    if (!user) {
+      toast({
+        title: 'Login Required',
+        description: 'Please log in to add comics to your collection.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
     if (!formData.title || !formData.publisher) {
       toast({
         title: 'Missing Information',
@@ -369,7 +381,7 @@ export function ScannerDialog({ open, onOpenChange, onAdd }: ScannerDialogProps)
     });
 
     handleClose();
-  }, [formData, onAdd, toast, handleClose, addRecentScan]);
+  }, [formData, onAdd, toast, handleClose, addRecentScan, user]);
 
   // Navigation helper
   const handleBack = useCallback(() => {
@@ -409,6 +421,14 @@ export function ScannerDialog({ open, onOpenChange, onAdd }: ScannerDialogProps)
             {step === 'details' && 'Comic Details'}
           </DialogTitle>
         </DialogHeader>
+
+        {/* Auth Warning */}
+        {!user && (
+          <div className="mx-4 mb-4 p-3 bg-yellow-500/10 border border-yellow-500/30 rounded-lg flex items-center gap-2 text-sm text-yellow-400">
+            <LogIn className="w-4 h-4 shrink-0" />
+            <span>Log in to save comics to your collection</span>
+          </div>
+        )}
 
         {/* Step 1: Scan/Search */}
         {step === 'scan' && (
