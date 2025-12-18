@@ -20,7 +20,7 @@ async function fetchComicVineCover(title: string, issueNumber: string, publisher
     volumeSearchUrl.searchParams.set('limit', '5');
 
     const volumeResponse = await fetch(volumeSearchUrl.toString(), {
-      headers: { 'User-Agent': 'ComicVault/1.0' }
+      headers: { 'User-Agent': 'KODEX/1.0' }
     });
 
     if (!volumeResponse.ok) {
@@ -55,7 +55,7 @@ async function fetchComicVineCover(title: string, issueNumber: string, publisher
     issuesUrl.searchParams.set('limit', '100');
 
     const issuesResponse = await fetch(issuesUrl.toString(), {
-      headers: { 'User-Agent': 'ComicVault/1.0' }
+      headers: { 'User-Agent': 'KODEX/1.0' }
     });
 
     if (!issuesResponse.ok) {

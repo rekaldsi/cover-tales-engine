@@ -50,7 +50,7 @@ export default function Dashboard() {
         <div className="relative z-10 flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
           <div>
             <h1 className="font-display text-4xl sm:text-5xl tracking-tight">
-              Welcome to <span className="gradient-text">COMICVAULT</span>
+              Welcome to <span className="gradient-text">KØDEX</span>
             </h1>
             <p className="text-muted-foreground mt-2 max-w-xl">
               Your personal comic book collection manager. Track, organize, and discover the value of your collection.

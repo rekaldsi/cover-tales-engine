@@ -43,7 +43,7 @@ async function searchComicVine(
     volumeSearchUrl.searchParams.set('limit', '10');
 
     const volumeResponse = await fetch(volumeSearchUrl.toString(), {
-      headers: { 'User-Agent': 'ComicVault/1.0' }
+      headers: { 'User-Agent': 'KODEX/1.0' }
     });
 
     if (!volumeResponse.ok) {
@@ -87,7 +87,7 @@ async function searchComicVine(
         issuesUrl.searchParams.set('limit', '50');
 
         const issuesResponse = await fetch(issuesUrl.toString(), {
-          headers: { 'User-Agent': 'ComicVault/1.0' }
+          headers: { 'User-Agent': 'KODEX/1.0' }
         });
 
         if (!issuesResponse.ok) continue;

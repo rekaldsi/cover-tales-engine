@@ -54,7 +54,7 @@ serve(async (req) => {
     const credentials = btoa(`${METRON_USERNAME}:${METRON_PASSWORD}`);
     const authHeaders = {
       'Authorization': `Basic ${credentials}`,
-      'User-Agent': 'ComicVault/1.0',
+      'User-Agent': 'KODEX/1.0',
       'Accept': 'application/json',
     };
 
