@@ -29,6 +29,57 @@ interface GoCollectResponse {
   per_page: number;
 }
 
+// Fetch with retry logic and timeout
+async function fetchWithRetry(
+  url: string, 
+  options: RequestInit, 
+  maxRetries = 3,
+  timeoutMs = 30000
+): Promise<Response> {
+  let lastError: Error | null = null;
+  
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+      
+      const response = await fetch(url, {
+        ...options,
+        signal: controller.signal,
+      });
+      
+      clearTimeout(timeoutId);
+      
+      // Don't retry on client errors (4xx), only server errors (5xx)
+      if (response.ok || (response.status >= 400 && response.status < 500)) {
+        return response;
+      }
+      
+      // Server error - will retry
+      console.log(`Attempt ${attempt}/${maxRetries} failed with status ${response.status}`);
+      lastError = new Error(`HTTP ${response.status}`);
+      
+    } catch (error) {
+      if (error instanceof Error && error.name === 'AbortError') {
+        console.log(`Attempt ${attempt}/${maxRetries} timed out after ${timeoutMs}ms`);
+        lastError = new Error('Request timed out');
+      } else {
+        console.log(`Attempt ${attempt}/${maxRetries} failed:`, error);
+        lastError = error instanceof Error ? error : new Error(String(error));
+      }
+    }
+    
+    // Exponential backoff: 2s, 4s, 8s
+    if (attempt < maxRetries) {
+      const delay = Math.pow(2, attempt) * 1000;
+      console.log(`Waiting ${delay}ms before retry...`);
+      await new Promise(resolve => setTimeout(resolve, delay));
+    }
+  }
+  
+  throw lastError || new Error('All retry attempts failed');
+}
+
 Deno.serve(async (req) => {
   // Handle CORS preflight
   if (req.method === 'OPTIONS') {
@@ -62,8 +113,7 @@ Deno.serve(async (req) => {
     console.log(`Starting GoCollect sync for user: ${user.id}`);
 
     // Fetch collection from GoCollect API
-    // Note: GoCollect API documentation shows these endpoints
-    // The actual endpoints may vary - adjust based on their API docs
+    // Fixed URL: removed extra /api/ segment
     const collectibles: GoCollectComic[] = [];
     let page = 1;
     let hasMore = true;
@@ -71,8 +121,8 @@ Deno.serve(async (req) => {
     while (hasMore) {
       console.log(`Fetching page ${page} from GoCollect...`);
       
-      const response = await fetch(
-        `https://api.gocollect.com/api/v1/collectibles?page=${page}&per_page=100`,
+      const response = await fetchWithRetry(
+        `https://api.gocollect.com/v1/collectibles?page=${page}&per_page=100`,
         {
           headers: {
             'Authorization': `Bearer ${GOCOLLECT_API_KEY}`,
@@ -229,7 +279,14 @@ Deno.serve(async (req) => {
   } catch (error) {
     console.error('GoCollect sync error:', error);
     
-    const errorMessage = error instanceof Error ? error.message : 'Failed to sync with GoCollect';
+    let errorMessage = 'Failed to sync with GoCollect';
+    if (error instanceof Error) {
+      if (error.message === 'Request timed out') {
+        errorMessage = 'GoCollect servers are not responding. Please try again later.';
+      } else {
+        errorMessage = error.message;
+      }
+    }
     
     return new Response(
       JSON.stringify({

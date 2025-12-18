@@ -22,6 +22,57 @@ interface FMVData {
   current?: number;
 }
 
+// Fetch with retry logic and timeout
+async function fetchWithRetry(
+  url: string, 
+  options: RequestInit, 
+  maxRetries = 3,
+  timeoutMs = 30000
+): Promise<Response> {
+  let lastError: Error | null = null;
+  
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+      
+      const response = await fetch(url, {
+        ...options,
+        signal: controller.signal,
+      });
+      
+      clearTimeout(timeoutId);
+      
+      // Don't retry on client errors (4xx), only server errors (5xx)
+      if (response.ok || (response.status >= 400 && response.status < 500)) {
+        return response;
+      }
+      
+      // Server error - will retry
+      console.log(`Attempt ${attempt}/${maxRetries} failed with status ${response.status}`);
+      lastError = new Error(`HTTP ${response.status}`);
+      
+    } catch (error) {
+      if (error instanceof Error && error.name === 'AbortError') {
+        console.log(`Attempt ${attempt}/${maxRetries} timed out after ${timeoutMs}ms`);
+        lastError = new Error('Request timed out');
+      } else {
+        console.log(`Attempt ${attempt}/${maxRetries} failed:`, error);
+        lastError = error instanceof Error ? error : new Error(String(error));
+      }
+    }
+    
+    // Exponential backoff: 2s, 4s, 8s
+    if (attempt < maxRetries) {
+      const delay = Math.pow(2, attempt) * 1000;
+      console.log(`Waiting ${delay}ms before retry...`);
+      await new Promise(resolve => setTimeout(resolve, delay));
+    }
+  }
+  
+  throw lastError || new Error('All retry attempts failed');
+}
+
 Deno.serve(async (req) => {
   // Handle CORS preflight
   if (req.method === 'OPTIONS') {
@@ -53,9 +104,9 @@ Deno.serve(async (req) => {
       searchParams.append('publisher', publisher);
     }
 
-    // Search for the comic in GoCollect
-    const searchResponse = await fetch(
-      `https://api.gocollect.com/api/v1/search?${searchParams.toString()}`,
+    // Search for the comic in GoCollect - Fixed URL: removed extra /api/ segment
+    const searchResponse = await fetchWithRetry(
+      `https://api.gocollect.com/v1/search?${searchParams.toString()}`,
       {
         headers: {
           'Authorization': `Bearer ${GOCOLLECT_API_KEY}`,
@@ -66,6 +117,19 @@ Deno.serve(async (req) => {
 
     if (!searchResponse.ok) {
       console.error(`GoCollect search error: ${searchResponse.status}`);
+      
+      if (searchResponse.status === 401 || searchResponse.status === 403) {
+        throw new Error('GoCollect API authentication failed. Please check your API key.');
+      }
+      
+      if (searchResponse.status === 522 || searchResponse.status === 524) {
+        throw new Error('GoCollect servers are temporarily unavailable. Please try again in a few minutes.');
+      }
+      
+      if (searchResponse.status >= 500) {
+        throw new Error('GoCollect is experiencing server issues. Please try again later.');
+      }
+      
       throw new Error('Failed to search GoCollect');
     }
 
@@ -87,9 +151,9 @@ Deno.serve(async (req) => {
     // Get the first matching result
     const comicId = searchData.data[0].id;
 
-    // Fetch detailed pricing/insights for this comic
-    const insightsResponse = await fetch(
-      `https://api.gocollect.com/api/v1/insights/${comicId}`,
+    // Fetch detailed pricing/insights for this comic - Fixed URL: removed extra /api/ segment
+    const insightsResponse = await fetchWithRetry(
+      `https://api.gocollect.com/v1/insights/${comicId}`,
       {
         headers: {
           'Authorization': `Bearer ${GOCOLLECT_API_KEY}`,
@@ -100,6 +164,11 @@ Deno.serve(async (req) => {
 
     if (!insightsResponse.ok) {
       console.error(`GoCollect insights error: ${insightsResponse.status}`);
+      
+      if (insightsResponse.status === 401 || insightsResponse.status === 403) {
+        throw new Error('GoCollect API authentication failed. Please check your API key.');
+      }
+      
       throw new Error('Failed to fetch pricing data');
     }
 
@@ -153,7 +222,14 @@ Deno.serve(async (req) => {
   } catch (error) {
     console.error('GoCollect value fetch error:', error);
     
-    const errorMessage = error instanceof Error ? error.message : 'Failed to fetch value from GoCollect';
+    let errorMessage = 'Failed to fetch value from GoCollect';
+    if (error instanceof Error) {
+      if (error.message === 'Request timed out') {
+        errorMessage = 'GoCollect servers are not responding. Please try again later.';
+      } else {
+        errorMessage = error.message;
+      }
+    }
     
     return new Response(
       JSON.stringify({
