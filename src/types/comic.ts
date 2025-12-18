@@ -4,6 +4,48 @@ export type ConditionGrade = '0.5' | '1.0' | '1.5' | '2.0' | '2.5' | '3.0' | '3.
 
 export type SignatureType = 'witnessed' | 'cgc_ss' | 'cbcs_verified' | 'unverified';
 
+export type LabelType = 
+  | 'universal' 
+  | 'signature_series' 
+  | 'qualified' 
+  | 'restored' 
+  | 'conserved'
+  | 'cbcs_verified_sig'
+  | 'cbcs_red_label'
+  | 'pgx_standard';
+
+export type PageQuality = 
+  | 'white'
+  | 'off_white_to_white'
+  | 'off_white'
+  | 'cream_to_off_white'
+  | 'cream'
+  | 'tan_to_cream'
+  | 'tan'
+  | 'tanned';
+
+export const PAGE_QUALITY_LABELS: Record<PageQuality, string> = {
+  white: 'White',
+  off_white_to_white: 'Off-White to White',
+  off_white: 'Off-White',
+  cream_to_off_white: 'Cream to Off-White',
+  cream: 'Cream',
+  tan_to_cream: 'Tan to Cream',
+  tan: 'Tan',
+  tanned: 'Tanned',
+};
+
+export const LABEL_TYPE_CONFIG: Record<LabelType, { label: string; color: string; bgColor: string }> = {
+  universal: { label: 'Universal', color: 'text-blue-600', bgColor: 'bg-blue-100' },
+  signature_series: { label: 'Signature Series', color: 'text-yellow-600', bgColor: 'bg-yellow-100' },
+  qualified: { label: 'Qualified', color: 'text-green-600', bgColor: 'bg-green-100' },
+  restored: { label: 'Restored', color: 'text-purple-600', bgColor: 'bg-purple-100' },
+  conserved: { label: 'Conserved', color: 'text-purple-600', bgColor: 'bg-purple-100' },
+  cbcs_verified_sig: { label: 'Verified Signature', color: 'text-red-600', bgColor: 'bg-red-100' },
+  cbcs_red_label: { label: 'Red Label', color: 'text-red-600', bgColor: 'bg-red-100' },
+  pgx_standard: { label: 'Standard', color: 'text-amber-600', bgColor: 'bg-amber-100' },
+};
+
 export interface Comic {
   id: string;
   title: string;
@@ -46,6 +88,13 @@ export interface Comic {
   firstAppearanceOf?: string;
   characters?: string[];
   mediaTieIn?: string;
+  
+  // Grading details
+  labelType?: LabelType;
+  pageQuality?: PageQuality;
+  graderNotes?: string;
+  gradedDate?: string;
+  innerWellNotes?: string;
 }
 
 export interface CollectionStats {

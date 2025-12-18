@@ -146,6 +146,12 @@ function mapDbToComic(row: any): Comic {
     firstAppearanceOf: row.first_appearance_of,
     characters: row.characters,
     mediaTieIn: row.media_tie_in,
+    // Grading details
+    labelType: row.label_type,
+    pageQuality: row.page_quality,
+    graderNotes: row.grader_notes,
+    gradedDate: row.graded_date,
+    innerWellNotes: row.inner_well_notes,
   };
 }
 
@@ -182,6 +188,12 @@ function mapComicToDb(comic: Omit<Comic, 'id' | 'dateAdded'>, userId: string) {
     first_appearance_of: comic.firstAppearanceOf,
     characters: comic.characters,
     media_tie_in: comic.mediaTieIn,
+    // Grading details
+    label_type: comic.labelType,
+    page_quality: comic.pageQuality,
+    grader_notes: comic.graderNotes,
+    graded_date: comic.gradedDate,
+    inner_well_notes: comic.innerWellNotes,
   };
 }
 
@@ -284,6 +296,12 @@ export function useComicCollection() {
       if (updates.firstAppearanceOf !== undefined) dbUpdates.first_appearance_of = updates.firstAppearanceOf;
       if (updates.characters !== undefined) dbUpdates.characters = updates.characters;
       if (updates.mediaTieIn !== undefined) dbUpdates.media_tie_in = updates.mediaTieIn;
+      // Grading details
+      if (updates.labelType !== undefined) dbUpdates.label_type = updates.labelType;
+      if (updates.pageQuality !== undefined) dbUpdates.page_quality = updates.pageQuality;
+      if (updates.graderNotes !== undefined) dbUpdates.grader_notes = updates.graderNotes;
+      if (updates.gradedDate !== undefined) dbUpdates.graded_date = updates.gradedDate;
+      if (updates.innerWellNotes !== undefined) dbUpdates.inner_well_notes = updates.innerWellNotes;
 
       const { error } = await supabase
         .from('comics')

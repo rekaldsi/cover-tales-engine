@@ -30,8 +30,10 @@ export type Database = {
           first_appearance_of: string | null
           grade: number | null
           grade_status: string | null
+          graded_date: string | null
           grader_notes: string | null
           id: string
+          inner_well_notes: string | null
           is_key_issue: boolean | null
           is_signed: boolean | null
           issue_number: string | null
@@ -40,6 +42,7 @@ export type Database = {
           location: string | null
           media_tie_in: string | null
           notes: string | null
+          page_quality: string | null
           print_number: number | null
           publisher: string | null
           purchase_date: string | null
@@ -69,8 +72,10 @@ export type Database = {
           first_appearance_of?: string | null
           grade?: number | null
           grade_status?: string | null
+          graded_date?: string | null
           grader_notes?: string | null
           id?: string
+          inner_well_notes?: string | null
           is_key_issue?: boolean | null
           is_signed?: boolean | null
           issue_number?: string | null
@@ -79,6 +84,7 @@ export type Database = {
           location?: string | null
           media_tie_in?: string | null
           notes?: string | null
+          page_quality?: string | null
           print_number?: number | null
           publisher?: string | null
           purchase_date?: string | null
@@ -108,8 +114,10 @@ export type Database = {
           first_appearance_of?: string | null
           grade?: number | null
           grade_status?: string | null
+          graded_date?: string | null
           grader_notes?: string | null
           id?: string
+          inner_well_notes?: string | null
           is_key_issue?: boolean | null
           is_signed?: boolean | null
           issue_number?: string | null
@@ -118,6 +126,7 @@ export type Database = {
           location?: string | null
           media_tie_in?: string | null
           notes?: string | null
+          page_quality?: string | null
           print_number?: number | null
           publisher?: string | null
           purchase_date?: string | null

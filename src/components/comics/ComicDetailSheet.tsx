@@ -3,10 +3,13 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sh
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Comic, ERA_LABELS, SignatureType } from '@/types/comic';
-import { Star, Award, Calendar, User, MapPin, Trash2, ExternalLink, Loader2, PenTool, CheckCircle2 } from 'lucide-react';
+import { Star, Award, Calendar, User, MapPin, Trash2, Loader2, PenTool, CheckCircle2, ShieldCheck, Settings } from 'lucide-react';
 import { useComicEnrichment } from '@/hooks/useComicEnrichment';
 import { MarkAsSignedDialog } from './MarkAsSignedDialog';
 import { ShouldIGradeThis } from '@/components/insights/ShouldIGradeThis';
+import { GradingDetails } from './GradingDetails';
+import { GradingDetailsForm } from './GradingDetailsForm';
+import { useCertVerification } from '@/hooks/useCertVerification';
 
 interface ComicDetailSheetProps {
   comic: Comic | null;
@@ -18,8 +21,10 @@ interface ComicDetailSheetProps {
 
 export function ComicDetailSheet({ comic, open, onOpenChange, onDelete, onUpdate }: ComicDetailSheetProps) {
   const { enrichComic, needsEnrichment, isEnriching } = useComicEnrichment();
+  const { verifyCert, isVerifying } = useCertVerification();
   const [enrichedComic, setEnrichedComic] = useState<Comic | null>(null);
   const [signDialogOpen, setSignDialogOpen] = useState(false);
+  const [gradingFormOpen, setGradingFormOpen] = useState(false);
 
   // Auto-enrich when sheet opens
   useEffect(() => {
@@ -93,6 +98,17 @@ export function ComicDetailSheet({ comic, open, onOpenChange, onDelete, onUpdate
       case 'unverified': return 'Unverified';
       default: return 'Signed';
     }
+  };
+
+  const handleVerifyCert = async () => {
+    if (displayComic.certNumber && displayComic.gradeStatus !== 'raw') {
+      await verifyCert(displayComic.certNumber, displayComic.gradeStatus);
+    }
+  };
+
+  const handleGradingDetailsSave = async (updates: Partial<Comic>) => {
+    await onUpdate(displayComic.id, updates);
+    setEnrichedComic(prev => prev ? { ...prev, ...updates } : null);
   };
   
   return (
@@ -230,6 +246,33 @@ export function ComicDetailSheet({ comic, open, onOpenChange, onDelete, onUpdate
             </div>
           )}
 
+          {/* Grading Details */}
+          {displayComic.gradeStatus !== 'raw' && (
+            <div className="relative">
+              <GradingDetails comic={displayComic} />
+              <div className="absolute top-4 right-4 flex gap-2">
+                {displayComic.certNumber && (
+                  <Button 
+                    variant="ghost" 
+                    size="sm"
+                    onClick={handleVerifyCert}
+                    disabled={isVerifying}
+                  >
+                    <ShieldCheck className="h-4 w-4 mr-1" />
+                    {isVerifying ? 'Verifying...' : 'Verify'}
+                  </Button>
+                )}
+                <Button 
+                  variant="ghost" 
+                  size="sm"
+                  onClick={() => setGradingFormOpen(true)}
+                >
+                  <Settings className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+          )}
+
           {/* Should I Grade This? */}
           <div className="mb-6">
             <ShouldIGradeThis comic={displayComic} />
@@ -254,14 +297,6 @@ export function ComicDetailSheet({ comic, open, onOpenChange, onDelete, onUpdate
               )}
               {displayComic.location && (
                 <DetailRow icon={MapPin} label="Location" value={displayComic.location} />
-              )}
-              {displayComic.certNumber && (
-                <DetailRow 
-                  icon={ExternalLink} 
-                  label="Cert #" 
-                  value={displayComic.certNumber}
-                  isLink
-                />
               )}
             </div>
           </div>
@@ -312,6 +347,13 @@ export function ComicDetailSheet({ comic, open, onOpenChange, onDelete, onUpdate
         open={signDialogOpen}
         onOpenChange={setSignDialogOpen}
         onSave={handleMarkAsSigned}
+      />
+
+      <GradingDetailsForm
+        comic={displayComic}
+        open={gradingFormOpen}
+        onOpenChange={setGradingFormOpen}
+        onSave={handleGradingDetailsSave}
       />
     </>
   );
