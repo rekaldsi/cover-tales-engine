@@ -15,9 +15,12 @@ interface RecognizedComic {
   grade?: string;
   certNumber?: string;
   coverDate?: string;
+  coverImageUrl?: string;
   isKeyIssue: boolean;
   keyIssueReason?: string;
   confidence: 'high' | 'medium' | 'low';
+  isVariant?: boolean;
+  userCapturedImage?: string; // Pass user's original photo for cover selection
 }
 
 interface CoverScannerProps {
@@ -41,9 +44,9 @@ export function CoverScanner({ onRecognize, onError }: CoverScannerProps) {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
         video: {
-          facingMode: 'environment', // Prefer back camera
-          width: { ideal: 1280 },
-          height: { ideal: 960 },
+          facingMode: 'environment',
+          width: { ideal: 1920, min: 1280 },
+          height: { ideal: 1440, min: 960 },
         }
       });
       
@@ -83,7 +86,7 @@ export function CoverScanner({ onRecognize, onError }: CoverScannerProps) {
     const ctx = canvas.getContext('2d');
     if (ctx) {
       ctx.drawImage(video, 0, 0);
-      const imageData = canvas.toDataURL('image/jpeg', 0.8);
+      const imageData = canvas.toDataURL('image/jpeg', 0.85);
       setCapturedImage(imageData);
       stopCamera();
     }
@@ -120,7 +123,11 @@ export function CoverScanner({ onRecognize, onError }: CoverScannerProps) {
           title: 'Comic Recognized!',
           description: `${data.comic.title} #${data.comic.issueNumber}`,
         });
-        onRecognize(data.comic);
+        // Pass the user's captured image along with recognition data
+        onRecognize({
+          ...data.comic,
+          userCapturedImage: capturedImage, // Include user's photo for cover selection
+        });
       } else {
         throw new Error(data.error || 'Failed to recognize comic');
       }
@@ -193,15 +200,15 @@ export function CoverScanner({ onRecognize, onError }: CoverScannerProps) {
               Take a photo of your comic cover
             </p>
             <div className="flex flex-col gap-2 w-full max-w-xs">
-              <Button onClick={() => cameraInputRef.current?.click()} className="w-full">
+              <Button onClick={() => cameraInputRef.current?.click()} className="w-full min-h-[44px]">
                 <Camera className="w-4 h-4 mr-2" />
                 Take Photo
               </Button>
-              <Button variant="outline" onClick={() => fileInputRef.current?.click()} className="w-full">
+              <Button variant="outline" onClick={() => fileInputRef.current?.click()} className="w-full min-h-[44px]">
                 <Upload className="w-4 h-4 mr-2" />
                 Choose from Gallery
               </Button>
-              <Button variant="ghost" onClick={startCamera} className="w-full text-muted-foreground">
+              <Button variant="ghost" onClick={startCamera} className="w-full min-h-[44px] text-muted-foreground">
                 Use Live Viewfinder
               </Button>
             </div>
@@ -223,11 +230,11 @@ export function CoverScanner({ onRecognize, onError }: CoverScannerProps) {
       <div className="flex justify-center gap-2 mt-4">
         {isStreaming && (
           <>
-            <Button onClick={captureFrame}>
+            <Button onClick={captureFrame} className="min-h-[44px]">
               <Camera className="w-4 h-4 mr-2" />
               Capture
             </Button>
-            <Button variant="outline" onClick={stopCamera}>
+            <Button variant="outline" onClick={stopCamera} className="min-h-[44px]">
               Cancel
             </Button>
           </>
@@ -235,10 +242,10 @@ export function CoverScanner({ onRecognize, onError }: CoverScannerProps) {
 
         {capturedImage && !isProcessing && (
           <>
-            <Button onClick={recognizeComic}>
+            <Button onClick={recognizeComic} className="min-h-[44px]">
               Recognize Comic
             </Button>
-            <Button variant="outline" onClick={resetCapture}>
+            <Button variant="outline" onClick={resetCapture} className="min-h-[44px]">
               <RefreshCw className="w-4 h-4 mr-2" />
               Retake
             </Button>

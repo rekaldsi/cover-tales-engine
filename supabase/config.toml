@@ -14,3 +14,12 @@ verify_jwt = false
 
 [functions.fetch-gocollect-value]
 verify_jwt = false
+
+[functions.fetch-ebay-prices]
+verify_jwt = false
+
+[functions.fetch-issue-variants]
+verify_jwt = false
+
+[functions.search-metron]
+verify_jwt = false
