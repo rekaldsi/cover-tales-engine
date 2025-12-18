@@ -1,6 +1,7 @@
 import { Comic, ERA_LABELS } from '@/types/comic';
 import { Badge } from '@/components/ui/badge';
 import { Star, Award } from 'lucide-react';
+import { SlabbedCover } from './SlabbedCover';
 
 interface ComicCardProps {
   comic: Comic;
@@ -11,32 +12,29 @@ export function ComicCard({ comic, onClick }: ComicCardProps) {
   const formattedValue = comic.currentValue 
     ? new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(comic.currentValue)
     : null;
+  
+  const isGraded = comic.gradeStatus !== 'raw';
     
   return (
     <article 
       onClick={onClick}
       className="comic-card cursor-pointer group"
     >
-      {/* Cover Image */}
-      <div className="relative aspect-[2/3] overflow-hidden bg-secondary">
-        {comic.coverImage ? (
-          <img 
-            src={comic.coverImage} 
-            alt={`${comic.title} #${comic.issueNumber}`}
-            className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
-          />
-        ) : (
-          <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-secondary to-muted">
-            <div className="text-center p-4">
-              <p className="font-display text-2xl text-muted-foreground">{comic.title}</p>
-              <p className="text-4xl font-display text-primary">#{comic.issueNumber}</p>
-            </div>
-          </div>
-        )}
+      {/* Cover Image with Slab Frame for Graded */}
+      <div className="relative overflow-hidden bg-secondary p-2">
+        <SlabbedCover
+          coverUrl={comic.coverImage}
+          title={comic.title}
+          issueNumber={comic.issueNumber}
+          gradeStatus={comic.gradeStatus}
+          grade={comic.grade}
+          certNumber={comic.certNumber}
+          className="transition-transform duration-500 group-hover:scale-105"
+        />
         
         {/* Key Issue Badge */}
         {comic.isKeyIssue && (
-          <div className="absolute top-2 left-2">
+          <div className="absolute top-4 left-4 z-10">
             <Badge className="bg-accent text-accent-foreground gap-1 shadow-lg">
               <Star className="h-3 w-3 fill-current" />
               KEY
@@ -44,18 +42,8 @@ export function ComicCard({ comic, onClick }: ComicCardProps) {
           </div>
         )}
         
-        {/* Grade Badge */}
-        {comic.grade && (
-          <div className="absolute top-2 right-2">
-            <Badge variant="secondary" className="bg-card/90 backdrop-blur-sm shadow-lg">
-              <Award className="h-3 w-3 mr-1" />
-              {comic.grade}
-            </Badge>
-          </div>
-        )}
-        
         {/* Gradient Overlay */}
-        <div className="absolute inset-0 bg-gradient-to-t from-card via-transparent to-transparent opacity-80" />
+        <div className="absolute inset-0 bg-gradient-to-t from-card via-transparent to-transparent opacity-80 pointer-events-none" />
       </div>
       
       {/* Info */}

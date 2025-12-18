@@ -1,9 +1,11 @@
-import { useState, useEffect } from 'react';
-import { Comic, CollectionStats, ComicEra } from '@/types/comic';
+import { useState, useEffect, useCallback } from 'react';
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/contexts/AuthContext';
+import { Comic, CollectionStats, ComicEra, getEraFromDate } from '@/types/comic';
 
 const STORAGE_KEY = 'comic-collection';
 
-// Sample data for demo
+// Sample data for demo (used when not authenticated)
 const SAMPLE_COMICS: Comic[] = [
   {
     id: '1',
@@ -105,47 +107,190 @@ const SAMPLE_COMICS: Comic[] = [
   },
 ];
 
+// Map database row to Comic type
+function mapDbToComic(row: any): Comic {
+  return {
+    id: row.id,
+    title: row.title,
+    issueNumber: row.issue_number || '',
+    volume: row.volume ? parseInt(row.volume) : undefined,
+    coverDate: row.cover_date,
+    publisher: row.publisher,
+    variant: row.variant_type,
+    coverImage: row.cover_image_url,
+    era: row.era || 'current',
+    writer: row.writer,
+    artist: row.artist,
+    coverArtist: row.cover_artist,
+    gradeStatus: row.grade_status || 'raw',
+    grade: row.grade?.toString(),
+    certNumber: row.cert_number,
+    purchasePrice: row.purchase_price ? parseFloat(row.purchase_price) : undefined,
+    currentValue: row.current_value ? parseFloat(row.current_value) : undefined,
+    dateAdded: row.created_at?.split('T')[0] || new Date().toISOString().split('T')[0],
+    location: row.location,
+    notes: row.notes,
+    isKeyIssue: row.is_key_issue || false,
+    keyIssueReason: row.key_issue_reason,
+  };
+}
+
+// Map Comic to database row
+function mapComicToDb(comic: Omit<Comic, 'id' | 'dateAdded'>, userId: string) {
+  return {
+    user_id: userId,
+    title: comic.title,
+    issue_number: comic.issueNumber,
+    volume: comic.volume?.toString(),
+    cover_date: comic.coverDate || null,
+    publisher: comic.publisher,
+    variant_type: comic.variant,
+    cover_image_url: comic.coverImage,
+    era: comic.era || getEraFromDate(comic.coverDate),
+    writer: comic.writer,
+    artist: comic.artist,
+    cover_artist: comic.coverArtist,
+    grade_status: comic.gradeStatus || 'raw',
+    grade: comic.grade ? parseFloat(comic.grade) : null,
+    cert_number: comic.certNumber,
+    purchase_price: comic.purchasePrice,
+    current_value: comic.currentValue,
+    location: comic.location,
+    notes: comic.notes,
+    is_key_issue: comic.isKeyIssue || false,
+    key_issue_reason: comic.keyIssueReason,
+  };
+}
+
 export function useComicCollection() {
+  const { user } = useAuth();
   const [comics, setComics] = useState<Comic[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  useEffect(() => {
-    const stored = localStorage.getItem(STORAGE_KEY);
-    if (stored) {
-      setComics(JSON.parse(stored));
+  // Fetch comics from Supabase or localStorage
+  const fetchComics = useCallback(async () => {
+    setIsLoading(true);
+    
+    if (user) {
+      // Fetch from Supabase
+      const { data, error } = await supabase
+        .from('comics')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        console.error('Error fetching comics:', error);
+        setComics([]);
+      } else {
+        setComics((data || []).map(mapDbToComic));
+      }
     } else {
-      // Load sample data for demo
-      setComics(SAMPLE_COMICS);
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(SAMPLE_COMICS));
+      // Use localStorage for demo
+      const stored = localStorage.getItem(STORAGE_KEY);
+      if (stored) {
+        setComics(JSON.parse(stored));
+      } else {
+        setComics(SAMPLE_COMICS);
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(SAMPLE_COMICS));
+      }
     }
+    
     setIsLoading(false);
-  }, []);
+  }, [user]);
 
-  const saveComics = (newComics: Comic[]) => {
-    setComics(newComics);
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(newComics));
-  };
+  useEffect(() => {
+    fetchComics();
+  }, [fetchComics]);
 
-  const addComic = (comic: Omit<Comic, 'id' | 'dateAdded'>) => {
-    const newComic: Comic = {
-      ...comic,
-      id: Date.now().toString(),
-      dateAdded: new Date().toISOString().split('T')[0],
-    };
-    saveComics([newComic, ...comics]);
-    return newComic;
-  };
+  const addComic = useCallback(async (comic: Omit<Comic, 'id' | 'dateAdded'>) => {
+    if (user) {
+      // Add to Supabase
+      const { data, error } = await supabase
+        .from('comics')
+        .insert(mapComicToDb(comic, user.id))
+        .select()
+        .single();
 
-  const updateComic = (id: string, updates: Partial<Comic>) => {
-    const updated = comics.map(c => c.id === id ? { ...c, ...updates } : c);
-    saveComics(updated);
-  };
+      if (error) {
+        console.error('Error adding comic:', error);
+        throw error;
+      }
 
-  const deleteComic = (id: string) => {
-    saveComics(comics.filter(c => c.id !== id));
-  };
+      const newComic = mapDbToComic(data);
+      setComics(prev => [newComic, ...prev]);
+      return newComic;
+    } else {
+      // Add to localStorage
+      const newComic: Comic = {
+        ...comic,
+        id: Date.now().toString(),
+        dateAdded: new Date().toISOString().split('T')[0],
+      };
+      const updated = [newComic, ...comics];
+      setComics(updated);
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+      return newComic;
+    }
+  }, [user, comics]);
 
-  const getStats = (): CollectionStats => {
+  const updateComic = useCallback(async (id: string, updates: Partial<Comic>) => {
+    if (user) {
+      // Update in Supabase
+      const dbUpdates: any = {};
+      if (updates.title !== undefined) dbUpdates.title = updates.title;
+      if (updates.issueNumber !== undefined) dbUpdates.issue_number = updates.issueNumber;
+      if (updates.publisher !== undefined) dbUpdates.publisher = updates.publisher;
+      if (updates.currentValue !== undefined) dbUpdates.current_value = updates.currentValue;
+      if (updates.gradeStatus !== undefined) dbUpdates.grade_status = updates.gradeStatus;
+      if (updates.grade !== undefined) dbUpdates.grade = parseFloat(updates.grade);
+      if (updates.isKeyIssue !== undefined) dbUpdates.is_key_issue = updates.isKeyIssue;
+      if (updates.keyIssueReason !== undefined) dbUpdates.key_issue_reason = updates.keyIssueReason;
+      if (updates.notes !== undefined) dbUpdates.notes = updates.notes;
+
+      const { error } = await supabase
+        .from('comics')
+        .update(dbUpdates)
+        .eq('id', id);
+
+      if (error) {
+        console.error('Error updating comic:', error);
+        throw error;
+      }
+    }
+
+    // Update local state
+    setComics(prev => prev.map(c => c.id === id ? { ...c, ...updates } : c));
+    
+    if (!user) {
+      const updated = comics.map(c => c.id === id ? { ...c, ...updates } : c);
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+    }
+  }, [user, comics]);
+
+  const deleteComic = useCallback(async (id: string) => {
+    if (user) {
+      // Delete from Supabase
+      const { error } = await supabase
+        .from('comics')
+        .delete()
+        .eq('id', id);
+
+      if (error) {
+        console.error('Error deleting comic:', error);
+        throw error;
+      }
+    }
+
+    // Update local state
+    setComics(prev => prev.filter(c => c.id !== id));
+    
+    if (!user) {
+      const updated = comics.filter(c => c.id !== id);
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+    }
+  }, [user, comics]);
+
+  const getStats = useCallback((): CollectionStats => {
     const byEra = comics.reduce((acc, comic) => {
       acc[comic.era] = (acc[comic.era] || 0) + 1;
       return acc;
@@ -169,7 +314,7 @@ export function useComicCollection() {
       byPublisher,
       recentlyAdded,
     };
-  };
+  }, [comics]);
 
   return {
     comics,
@@ -178,5 +323,6 @@ export function useComicCollection() {
     updateComic,
     deleteComic,
     getStats,
+    refetch: fetchComics,
   };
 }

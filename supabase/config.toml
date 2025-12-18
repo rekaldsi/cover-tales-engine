@@ -1,1 +1,7 @@
 project_id = "lwhftiycpoaqldqubenw"
+
+[functions.recognize-comic]
+verify_jwt = false
+
+[functions.search-comic]
+verify_jwt = false
