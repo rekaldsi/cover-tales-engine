@@ -5,9 +5,10 @@ import { Link, useLocation } from 'react-router-dom';
 interface HeaderProps {
   onAddClick: () => void;
   onMenuClick: () => void;
+  onSearchClick?: () => void;
 }
 
-export function Header({ onAddClick, onMenuClick }: HeaderProps) {
+export function Header({ onAddClick, onMenuClick, onSearchClick }: HeaderProps) {
   const location = useLocation();
   
   return (
@@ -37,13 +38,22 @@ export function Header({ onAddClick, onMenuClick }: HeaderProps) {
         <nav className="hidden md:flex items-center gap-1">
           <NavLink to="/" active={location.pathname === '/'}>Dashboard</NavLink>
           <NavLink to="/collection" active={location.pathname === '/collection'}>Collection</NavLink>
+          <NavLink to="/creators" active={location.pathname === '/creators'}>Creators</NavLink>
           <NavLink to="/insights" active={location.pathname === '/insights'}>Insights</NavLink>
         </nav>
 
         <div className="flex items-center gap-2">
-          <Button variant="ghost" size="icon" className="hidden sm:flex">
+          <Button 
+            variant="ghost" 
+            size="icon" 
+            className="hidden sm:flex"
+            onClick={onSearchClick}
+          >
             <Search className="h-5 w-5" />
           </Button>
+          <kbd className="hidden lg:inline-flex items-center gap-1 px-2 py-1 text-xs text-muted-foreground bg-secondary rounded">
+            <span className="text-xs">⌘</span>K
+          </kbd>
           <Button variant="hero" onClick={onAddClick} className="gap-2">
             <Plus className="h-4 w-4" />
             <span className="hidden sm:inline">Add Comic</span>
