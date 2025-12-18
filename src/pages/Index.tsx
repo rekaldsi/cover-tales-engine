@@ -55,7 +55,7 @@ export default function Index() {
         ownedComics={comics}
       />
 
-      <HuntingModeFAB onClick={() => setHuntingOpen(true)} />
+      {comics.length > 0 && <HuntingModeFAB onClick={() => setHuntingOpen(true)} />}
     </div>
   );
 }
