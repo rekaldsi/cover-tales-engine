@@ -29,6 +29,7 @@ export function CoverScanner({ onRecognize, onError }: CoverScannerProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
   
   const [isStreaming, setIsStreaming] = useState(false);
@@ -147,9 +148,18 @@ export function CoverScanner({ onRecognize, onError }: CoverScannerProps) {
       {/* Hidden canvas for capture */}
       <canvas ref={canvasRef} className="hidden" />
       
-      {/* Hidden file input */}
+      {/* Hidden file input for gallery/upload (no capture) */}
       <input
         ref={fileInputRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={handleFileUpload}
+      />
+      
+      {/* Hidden camera input for direct photo capture (mobile) */}
+      <input
+        ref={cameraInputRef}
         type="file"
         accept="image/*"
         capture="environment"
@@ -182,14 +192,17 @@ export function CoverScanner({ onRecognize, onError }: CoverScannerProps) {
             <p className="text-muted-foreground mb-4">
               Take a photo of your comic cover
             </p>
-            <div className="flex gap-2">
-              <Button onClick={startCamera}>
+            <div className="flex flex-col gap-2 w-full max-w-xs">
+              <Button onClick={() => cameraInputRef.current?.click()} className="w-full">
                 <Camera className="w-4 h-4 mr-2" />
-                Use Camera
+                Take Photo
               </Button>
-              <Button variant="outline" onClick={() => fileInputRef.current?.click()}>
+              <Button variant="outline" onClick={() => fileInputRef.current?.click()} className="w-full">
                 <Upload className="w-4 h-4 mr-2" />
-                Upload
+                Choose from Gallery
+              </Button>
+              <Button variant="ghost" onClick={startCamera} className="w-full text-muted-foreground">
+                Use Live Viewfinder
               </Button>
             </div>
           </div>
