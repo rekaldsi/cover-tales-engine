@@ -6,12 +6,13 @@ import { EraChart } from '@/components/comics/EraChart';
 import { RecentlyAddedCarousel } from '@/components/comics/RecentlyAddedCarousel';
 import { ComicDetailSheet } from '@/components/comics/ComicDetailSheet';
 import { SigningRecommendations } from '@/components/signings/SigningRecommendations';
+import { GoCollectImport } from '@/components/import/GoCollectImport';
 import { Comic } from '@/types/comic';
 import { Library, DollarSign, Star, TrendingUp, Loader2 } from 'lucide-react';
 import { Progress } from '@/components/ui/progress';
 
 export default function Dashboard() {
-  const { comics, getStats, deleteComic, updateComic } = useComicCollection();
+  const { comics, getStats, deleteComic, updateComic, refetch } = useComicCollection();
   const { progress, isEnriching } = useBackgroundEnrichment(comics, updateComic);
   const stats = getStats();
   const [selectedComic, setSelectedComic] = useState<Comic | null>(null);
@@ -46,13 +47,16 @@ export default function Dashboard() {
         <div className="absolute inset-0 bg-hero-pattern opacity-10" />
         <div className="absolute inset-0 bg-gradient-to-r from-background via-background/80 to-transparent" />
         
-        <div className="relative z-10">
-          <h1 className="font-display text-4xl sm:text-5xl tracking-tight">
-            Welcome to <span className="gradient-text">COMICVAULT</span>
-          </h1>
-          <p className="text-muted-foreground mt-2 max-w-xl">
-            Your personal comic book collection manager. Track, organize, and discover the value of your collection.
-          </p>
+        <div className="relative z-10 flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+          <div>
+            <h1 className="font-display text-4xl sm:text-5xl tracking-tight">
+              Welcome to <span className="gradient-text">COMICVAULT</span>
+            </h1>
+            <p className="text-muted-foreground mt-2 max-w-xl">
+              Your personal comic book collection manager. Track, organize, and discover the value of your collection.
+            </p>
+          </div>
+          <GoCollectImport onImportComplete={refetch} />
         </div>
       </section>
       
