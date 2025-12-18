@@ -1,14 +1,17 @@
 import { useState } from 'react';
 import { useComicCollection } from '@/hooks/useComicCollection';
+import { useBackgroundEnrichment } from '@/hooks/useBackgroundEnrichment';
 import { StatCard } from '@/components/comics/StatCard';
 import { EraChart } from '@/components/comics/EraChart';
 import { RecentlyAddedCarousel } from '@/components/comics/RecentlyAddedCarousel';
 import { ComicDetailSheet } from '@/components/comics/ComicDetailSheet';
 import { Comic } from '@/types/comic';
-import { Library, DollarSign, Star, TrendingUp } from 'lucide-react';
+import { Library, DollarSign, Star, TrendingUp, Loader2 } from 'lucide-react';
+import { Progress } from '@/components/ui/progress';
 
 export default function Dashboard() {
   const { comics, getStats, deleteComic, updateComic } = useComicCollection();
+  const { progress, isEnriching } = useBackgroundEnrichment(comics, updateComic);
   const stats = getStats();
   const [selectedComic, setSelectedComic] = useState<Comic | null>(null);
   
@@ -24,6 +27,19 @@ export default function Dashboard() {
   
   return (
     <div className="space-y-8 animate-fade-in">
+      {/* Background Enrichment Progress */}
+      {isEnriching && (
+        <div className="fixed bottom-20 left-4 right-4 sm:left-auto sm:right-4 sm:w-80 z-50 p-4 bg-card border border-border rounded-lg shadow-lg animate-slide-up">
+          <div className="flex items-center gap-2 mb-2">
+            <Loader2 className="h-4 w-4 animate-spin text-primary" />
+            <span className="text-sm font-medium">Enriching collection data...</span>
+          </div>
+          <Progress value={(progress.completed / progress.total) * 100} className="h-2" />
+          <p className="text-xs text-muted-foreground mt-1">
+            {progress.completed} of {progress.total} comics
+          </p>
+        </div>
+      )}
       {/* Hero Section */}
       <section className="relative overflow-hidden rounded-2xl p-6 sm:p-8">
         <div className="absolute inset-0 bg-hero-pattern opacity-10" />
