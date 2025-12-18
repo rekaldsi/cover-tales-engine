@@ -1,4 +1,4 @@
-import { Home, Library, TrendingUp, Users, PenTool, X } from 'lucide-react';
+import { Home, Library, TrendingUp, Users, PenTool, X, Search } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 
 interface MobileNavProps {
@@ -69,6 +69,20 @@ export function MobileNav({ isOpen, onClose }: MobileNavProps) {
           >
             Insights
           </MobileNavLink>
+          
+          <div className="pt-4 border-t border-border mt-4">
+            <div className="px-4 py-2 text-xs text-muted-foreground uppercase tracking-wider">
+              Quick Actions
+            </div>
+            <MobileNavLink 
+              to="#lookup" 
+              icon={Search} 
+              active={false} 
+              onClick={onClose}
+            >
+              Quick Lookup
+            </MobileNavLink>
+          </div>
         </div>
       </nav>
     </>
