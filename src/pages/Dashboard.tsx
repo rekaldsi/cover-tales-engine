@@ -14,9 +14,10 @@ import { Progress } from '@/components/ui/progress';
 
 interface DashboardProps {
   onAddClick?: () => void;
+  onHuntingClick?: () => void;
 }
 
-export default function Dashboard({ onAddClick }: DashboardProps) {
+export default function Dashboard({ onAddClick, onHuntingClick }: DashboardProps) {
   const { comics, getStats, deleteComic, updateComic, refetch } = useComicCollection();
   const { progress, isEnriching } = useBackgroundEnrichment(comics, updateComic);
   const stats = getStats();
@@ -50,7 +51,7 @@ export default function Dashboard({ onAddClick }: DashboardProps) {
           </div>
         </section>
         
-        <EmptyCollectionState onAddClick={onAddClick || (() => {})} />
+        <EmptyCollectionState onAddClick={onAddClick || (() => {})} onHuntingClick={onHuntingClick} />
       </div>
     );
   }

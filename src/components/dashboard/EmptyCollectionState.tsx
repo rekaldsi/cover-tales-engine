@@ -1,11 +1,12 @@
-import { Library, Plus, Scan, Search } from 'lucide-react';
+import { Library, Plus, Scan, Target, Star } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 interface EmptyCollectionStateProps {
   onAddClick: () => void;
+  onHuntingClick?: () => void;
 }
 
-export function EmptyCollectionState({ onAddClick }: EmptyCollectionStateProps) {
+export function EmptyCollectionState({ onAddClick, onHuntingClick }: EmptyCollectionStateProps) {
   return (
     <div className="flex flex-col items-center justify-center py-16 px-4 text-center animate-fade-in">
       <div className="relative mb-6">
@@ -29,17 +30,19 @@ export function EmptyCollectionState({ onAddClick }: EmptyCollectionStateProps) 
           className="gap-2"
         >
           <Scan className="w-5 h-5" />
-          Scan a Comic
+          Scan to Add
         </Button>
-        <Button 
-          size="lg" 
-          variant="outline"
-          onClick={onAddClick}
-          className="gap-2"
-        >
-          <Search className="w-5 h-5" />
-          Search & Add
-        </Button>
+        {onHuntingClick && (
+          <Button 
+            size="lg" 
+            variant="outline"
+            onClick={onHuntingClick}
+            className="gap-2"
+          >
+            <Target className="w-5 h-5" />
+            Hunting Mode
+          </Button>
+        )}
       </div>
       
       <div className="mt-12 grid grid-cols-1 sm:grid-cols-3 gap-6 max-w-2xl">
@@ -49,7 +52,7 @@ export function EmptyCollectionState({ onAddClick }: EmptyCollectionStateProps) 
           description="Quickly add comics by scanning their barcode"
         />
         <FeatureCard
-          icon={Search}
+          icon={Star}
           title="Key Issue Lookup"
           description="Instantly check if a comic is valuable"
         />
