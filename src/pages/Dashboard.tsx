@@ -8,7 +8,7 @@ import { Comic } from '@/types/comic';
 import { Library, DollarSign, Star, TrendingUp } from 'lucide-react';
 
 export default function Dashboard() {
-  const { comics, getStats, deleteComic } = useComicCollection();
+  const { comics, getStats, deleteComic, updateComic } = useComicCollection();
   const stats = getStats();
   const [selectedComic, setSelectedComic] = useState<Comic | null>(null);
   
@@ -136,6 +136,7 @@ export default function Dashboard() {
         open={!!selectedComic}
         onOpenChange={(open) => !open && setSelectedComic(null)}
         onDelete={deleteComic}
+        onUpdate={updateComic}
       />
     </div>
   );

@@ -235,7 +235,7 @@ export function useComicCollection() {
 
   const updateComic = useCallback(async (id: string, updates: Partial<Comic>) => {
     if (user) {
-      // Update in Supabase
+      // Update in Supabase - handle all possible fields
       const dbUpdates: any = {};
       if (updates.title !== undefined) dbUpdates.title = updates.title;
       if (updates.issueNumber !== undefined) dbUpdates.issue_number = updates.issueNumber;
@@ -246,6 +246,12 @@ export function useComicCollection() {
       if (updates.isKeyIssue !== undefined) dbUpdates.is_key_issue = updates.isKeyIssue;
       if (updates.keyIssueReason !== undefined) dbUpdates.key_issue_reason = updates.keyIssueReason;
       if (updates.notes !== undefined) dbUpdates.notes = updates.notes;
+      // ComicVine enrichment fields
+      if (updates.coverImage !== undefined) dbUpdates.cover_image_url = updates.coverImage;
+      if (updates.writer !== undefined) dbUpdates.writer = updates.writer;
+      if (updates.artist !== undefined) dbUpdates.artist = updates.artist;
+      if (updates.coverArtist !== undefined) dbUpdates.cover_artist = updates.coverArtist;
+      if (updates.coverDate !== undefined) dbUpdates.cover_date = updates.coverDate;
 
       const { error } = await supabase
         .from('comics')
