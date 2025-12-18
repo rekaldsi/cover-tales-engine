@@ -1,6 +1,7 @@
-import { Book, Plus, Search, Menu } from 'lucide-react';
+import { Plus, Search, Menu } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Link, useLocation } from 'react-router-dom';
+import { KodexLogo } from '@/components/brand/KodexLogo';
 
 interface HeaderProps {
   onAddClick: () => void;
@@ -24,8 +25,7 @@ export function Header({ onAddClick, onMenuClick, onSearchClick }: HeaderProps) 
           
           <Link to="/" className="flex items-center gap-2">
             <div className="relative">
-              <Book className="h-8 w-8 text-primary" />
-              <div className="absolute -top-1 -right-1 w-3 h-3 bg-accent rounded-full animate-pulse" />
+              <KodexLogo className="h-8 w-8" />
             </div>
             <div className="hidden sm:block">
               <h1 className="font-display text-2xl tracking-wide gradient-text">
