@@ -54,10 +54,16 @@ async function fetchWithRetry(
       if (response.ok || (response.status >= 400 && response.status < 500)) {
         return response;
       }
-      
+
       // Server error - will retry
       console.log(`Attempt ${attempt}/${maxRetries} failed with status ${response.status}`);
-      lastError = new Error(`HTTP ${response.status}`);
+
+      // Preserve user-friendly messaging for common upstream timeout statuses
+      if (response.status === 522 || response.status === 524) {
+        lastError = new Error('GoCollect servers are temporarily unavailable. Please try again in a few minutes.');
+      } else {
+        lastError = new Error(`HTTP ${response.status}`);
+      }
       
     } catch (error) {
       if (error instanceof Error && error.name === 'AbortError') {
@@ -295,7 +301,8 @@ Deno.serve(async (req) => {
       }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 500,
+        // Return 200 so the client receives a structured payload (avoids client-side "non-2xx" errors)
+        status: 200,
       }
     );
   }
