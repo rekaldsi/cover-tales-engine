@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -12,8 +12,9 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
-import { Barcode, Camera, Search, Edit, Loader2, ArrowLeft, Check, Clock, Zap } from 'lucide-react';
-import { BarcodeScanner } from './BarcodeScanner';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { Barcode, Camera, Search, Edit, Loader2, ArrowLeft, Check, Clock, Zap, ImageIcon } from 'lucide-react';
+import { BarcodeScanner, type ParsedUPC } from './BarcodeScanner';
 import { CoverScanner } from './CoverScanner';
 import { ComicSearch } from './ComicSearch';
 import { useToast } from '@/hooks/use-toast';
@@ -27,7 +28,15 @@ interface ScannerDialogProps {
   onAdd: (comic: Omit<Comic, 'id' | 'dateAdded'>) => void;
 }
 
-type ScanStep = 'scan' | 'confirm' | 'details';
+type ScanStep = 'scan' | 'select-cover' | 'confirm' | 'details';
+
+interface CoverOption {
+  id: string;
+  label: string;
+  imageUrl: string;
+  isDefault: boolean;
+  source: 'comicvine' | 'metron' | 'user';
+}
 
 interface ScannedData {
   title: string;
@@ -46,6 +55,8 @@ interface ScannedData {
   certNumber?: string;
   isKeyIssue?: boolean;
   keyIssueReason?: string;
+  isVariant?: boolean;
+  userCapturedImage?: string;
 }
 
 export function ScannerDialog({ open, onOpenChange, onAdd }: ScannerDialogProps) {
@@ -56,6 +67,11 @@ export function ScannerDialog({ open, onOpenChange, onAdd }: ScannerDialogProps)
   const [quickAddMode, setQuickAddMode] = useState(false);
   const { toast } = useToast();
   const { recentScans, addRecentScan } = useRecentScans();
+
+  // Cover selection state
+  const [availableCovers, setAvailableCovers] = useState<CoverOption[]>([]);
+  const [selectedCover, setSelectedCover] = useState<string | null>(null);
+  const [isLoadingCovers, setIsLoadingCovers] = useState(false);
 
   // Form state for details step
   const [formData, setFormData] = useState<Partial<Comic>>({
@@ -69,6 +85,83 @@ export function ScannerDialog({ open, onOpenChange, onAdd }: ScannerDialogProps)
     setScannedData(null);
     setFormData({ gradeStatus: 'raw', isKeyIssue: false });
     setQuickAddMode(false);
+    setAvailableCovers([]);
+    setSelectedCover(null);
+  }, []);
+
+  // Fetch available covers for the identified comic
+  const fetchCovers = useCallback(async (data: ScannedData) => {
+    if (!data.title || !data.issueNumber) return;
+
+    setIsLoadingCovers(true);
+    try {
+      const { data: variantsData, error } = await supabase.functions.invoke('fetch-issue-variants', {
+        body: {
+          title: data.title,
+          issueNumber: data.issueNumber,
+          publisher: data.publisher,
+          userPhoto: data.userCapturedImage,
+        }
+      });
+
+      if (error) throw error;
+
+      if (variantsData?.success && variantsData.covers?.length > 0) {
+        setAvailableCovers(variantsData.covers);
+        // Auto-select the default cover or first one
+        const defaultCover = variantsData.covers.find((c: CoverOption) => c.isDefault) || variantsData.covers[0];
+        setSelectedCover(defaultCover.id);
+      } else {
+        // No variants found, create options from what we have
+        const covers: CoverOption[] = [];
+        if (data.coverImageUrl) {
+          covers.push({
+            id: 'main',
+            label: 'Main Cover',
+            imageUrl: data.coverImageUrl,
+            isDefault: true,
+            source: 'comicvine',
+          });
+        }
+        if (data.userCapturedImage) {
+          covers.push({
+            id: 'user_photo',
+            label: 'My Photo',
+            imageUrl: data.userCapturedImage,
+            isDefault: covers.length === 0,
+            source: 'user',
+          });
+        }
+        setAvailableCovers(covers);
+        setSelectedCover(covers[0]?.id || null);
+      }
+    } catch (err) {
+      console.error('Failed to fetch covers:', err);
+      // Fallback: use what we have
+      const covers: CoverOption[] = [];
+      if (data.coverImageUrl) {
+        covers.push({
+          id: 'main',
+          label: 'Main Cover',
+          imageUrl: data.coverImageUrl,
+          isDefault: true,
+          source: 'comicvine',
+        });
+      }
+      if (data.userCapturedImage) {
+        covers.push({
+          id: 'user_photo',
+          label: 'My Photo',
+          imageUrl: data.userCapturedImage,
+          isDefault: covers.length === 0,
+          source: 'user',
+        });
+      }
+      setAvailableCovers(covers);
+      setSelectedCover(covers[0]?.id || null);
+    } finally {
+      setIsLoadingCovers(false);
+    }
   }, []);
 
   // Quick add from recent scans
@@ -95,21 +188,21 @@ export function ScannerDialog({ open, onOpenChange, onAdd }: ScannerDialogProps)
   }, [onOpenChange, resetState]);
 
   // Handle barcode scan
-  const handleBarcodeScan = useCallback(async (barcode: string, format: string) => {
-    console.log('Barcode scanned:', barcode, format);
+  const handleBarcodeScan = useCallback(async (barcode: string, format: string, parsedUPC?: ParsedUPC) => {
+    console.log('Barcode scanned:', barcode, format, parsedUPC);
     setIsSearching(true);
 
     try {
       // Search for comic by barcode
       const { data, error } = await supabase.functions.invoke('search-comic', {
-        body: { barcode }
+        body: { barcode, parsedUPC }
       });
 
       if (error) throw error;
 
       if (data.success && data.results?.[0]) {
         const result = data.results[0];
-        setScannedData({
+        const scanned: ScannedData = {
           title: result.title,
           issueNumber: result.issueNumber,
           publisher: result.publisher,
@@ -120,8 +213,12 @@ export function ScannerDialog({ open, onOpenChange, onAdd }: ScannerDialogProps)
           coverArtist: result.coverArtist,
           isKeyIssue: result.isKeyIssue,
           keyIssueReason: result.keyIssueReason,
-        });
-        setStep('confirm');
+          printNumber: parsedUPC?.printNumber,
+        };
+        setScannedData(scanned);
+        // Go to cover selection if multiple covers might exist
+        setStep('select-cover');
+        fetchCovers(scanned);
       } else {
         toast({
           title: 'Comic Not Found',
@@ -139,30 +236,36 @@ export function ScannerDialog({ open, onOpenChange, onAdd }: ScannerDialogProps)
     } finally {
       setIsSearching(false);
     }
-  }, [toast]);
+  }, [toast, fetchCovers]);
 
   // Handle cover recognition
   const handleCoverRecognize = useCallback((comic: any) => {
-    setScannedData({
+    const scanned: ScannedData = {
       title: comic.title,
       issueNumber: comic.issueNumber,
       publisher: comic.publisher,
       variant: comic.variant,
       printNumber: comic.printNumber,
       coverDate: comic.coverDate,
+      coverImageUrl: comic.coverImageUrl,
       isGraded: comic.isGraded,
       gradingCompany: comic.gradingCompany,
       grade: comic.grade,
       certNumber: comic.certNumber,
       isKeyIssue: comic.isKeyIssue,
       keyIssueReason: comic.keyIssueReason,
-    });
-    setStep('confirm');
-  }, []);
+      isVariant: comic.isVariant,
+      userCapturedImage: comic.userCapturedImage,
+    };
+    setScannedData(scanned);
+    // Always show cover selection for cover scans (user might have variant)
+    setStep('select-cover');
+    fetchCovers(scanned);
+  }, [fetchCovers]);
 
   // Handle search result selection
   const handleSearchSelect = useCallback((result: any) => {
-    setScannedData({
+    const scanned: ScannedData = {
       title: result.title,
       issueNumber: result.issueNumber,
       publisher: result.publisher,
@@ -173,9 +276,27 @@ export function ScannerDialog({ open, onOpenChange, onAdd }: ScannerDialogProps)
       coverArtist: result.coverArtist,
       isKeyIssue: result.isKeyIssue,
       keyIssueReason: result.keyIssueReason,
-    });
+    };
+    setScannedData(scanned);
+    setStep('select-cover');
+    fetchCovers(scanned);
+  }, [fetchCovers]);
+
+  // Proceed from cover selection to confirm
+  const handleCoverSelected = useCallback(() => {
+    if (!scannedData || !selectedCover) return;
+
+    // Update scannedData with selected cover
+    const cover = availableCovers.find(c => c.id === selectedCover);
+    if (cover) {
+      setScannedData(prev => prev ? {
+        ...prev,
+        coverImageUrl: cover.imageUrl,
+        variant: cover.label !== 'Main Cover' && cover.label !== 'Cover A' ? cover.label : prev?.variant,
+      } : null);
+    }
     setStep('confirm');
-  }, []);
+  }, [scannedData, selectedCover, availableCovers]);
 
   // Proceed from confirm to details
   const handleConfirm = useCallback(() => {
@@ -250,6 +371,23 @@ export function ScannerDialog({ open, onOpenChange, onAdd }: ScannerDialogProps)
     handleClose();
   }, [formData, onAdd, toast, handleClose, addRecentScan]);
 
+  // Navigation helper
+  const handleBack = useCallback(() => {
+    switch (step) {
+      case 'select-cover':
+        setStep('scan');
+        setAvailableCovers([]);
+        setSelectedCover(null);
+        break;
+      case 'confirm':
+        setStep('select-cover');
+        break;
+      case 'details':
+        setStep('confirm');
+        break;
+    }
+  }, [step]);
+
   return (
     <Dialog open={open} onOpenChange={handleClose}>
       <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
@@ -260,12 +398,13 @@ export function ScannerDialog({ open, onOpenChange, onAdd }: ScannerDialogProps)
                 variant="ghost"
                 size="icon"
                 className="h-6 w-6"
-                onClick={() => setStep(step === 'details' ? 'confirm' : 'scan')}
+                onClick={handleBack}
               >
                 <ArrowLeft className="h-4 w-4" />
               </Button>
             )}
             {step === 'scan' && 'Add Comic'}
+            {step === 'select-cover' && 'Select Cover'}
             {step === 'confirm' && 'Confirm Match'}
             {step === 'details' && 'Comic Details'}
           </DialogTitle>
@@ -362,6 +501,82 @@ export function ScannerDialog({ open, onOpenChange, onAdd }: ScannerDialogProps)
           </div>
         )}
 
+        {/* Step 1.5: Select Cover */}
+        {step === 'select-cover' && scannedData && (
+          <div className="space-y-4">
+            <div className="text-center">
+              <h3 className="font-semibold text-lg">{scannedData.title} #{scannedData.issueNumber}</h3>
+              <p className="text-sm text-muted-foreground">{scannedData.publisher}</p>
+            </div>
+
+            {isLoadingCovers ? (
+              <div className="flex items-center justify-center py-12">
+                <Loader2 className="w-8 h-8 animate-spin text-primary" />
+                <span className="ml-2 text-muted-foreground">Loading covers...</span>
+              </div>
+            ) : availableCovers.length === 0 ? (
+              <div className="text-center py-8">
+                <ImageIcon className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+                <p className="text-muted-foreground">No cover images found</p>
+                <Button onClick={() => setStep('confirm')} className="mt-4 min-h-[44px]">
+                  Continue Without Cover
+                </Button>
+              </div>
+            ) : (
+              <>
+                <p className="text-sm text-muted-foreground text-center">
+                  Select the correct cover for your comic
+                </p>
+                
+                <ScrollArea className="h-[300px]">
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 p-1">
+                    {availableCovers.map((cover) => (
+                      <button
+                        key={cover.id}
+                        onClick={() => setSelectedCover(cover.id)}
+                        className={`relative rounded-lg overflow-hidden border-2 transition-all ${
+                          selectedCover === cover.id
+                            ? 'border-primary ring-2 ring-primary/20'
+                            : 'border-border/50 hover:border-border'
+                        }`}
+                      >
+                        <div className="aspect-[2/3] bg-muted">
+                          <img
+                            src={cover.imageUrl}
+                            alt={cover.label}
+                            className="w-full h-full object-cover"
+                            loading="lazy"
+                          />
+                        </div>
+                        <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-2">
+                          <p className="text-xs text-white font-medium truncate">{cover.label}</p>
+                          {cover.source === 'user' && (
+                            <p className="text-[10px] text-white/70">Your Photo</p>
+                          )}
+                        </div>
+                        {selectedCover === cover.id && (
+                          <div className="absolute top-2 right-2 w-6 h-6 bg-primary rounded-full flex items-center justify-center">
+                            <Check className="w-4 h-4 text-primary-foreground" />
+                          </div>
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                </ScrollArea>
+
+                <Button 
+                  onClick={handleCoverSelected} 
+                  disabled={!selectedCover}
+                  className="w-full min-h-[44px]"
+                >
+                  <Check className="w-4 h-4 mr-2" />
+                  Use Selected Cover
+                </Button>
+              </>
+            )}
+          </div>
+        )}
+
         {/* Step 2: Confirm Match */}
         {step === 'confirm' && scannedData && (
           <div className="space-y-4">
@@ -400,10 +615,10 @@ export function ScannerDialog({ open, onOpenChange, onAdd }: ScannerDialogProps)
             </div>
 
             <div className="flex gap-2">
-              <Button variant="outline" className="flex-1" onClick={() => setStep('scan')}>
-                Not Right
+              <Button variant="outline" className="flex-1 min-h-[44px]" onClick={() => setStep('select-cover')}>
+                Change Cover
               </Button>
-              <Button className="flex-1" onClick={handleConfirm}>
+              <Button className="flex-1 min-h-[44px]" onClick={handleConfirm}>
                 <Check className="w-4 h-4 mr-2" />
                 Confirm
               </Button>
@@ -586,7 +801,7 @@ export function ScannerDialog({ open, onOpenChange, onAdd }: ScannerDialogProps)
             </div>
 
             {/* Submit */}
-            <Button onClick={handleSubmit} className="w-full">
+            <Button onClick={handleSubmit} className="w-full min-h-[44px]">
               Add to Collection
             </Button>
           </div>

@@ -15,7 +15,7 @@ interface FMVData {
 
 interface ValuationResult {
   success: boolean;
-  source: 'gocollect' | 'manual' | 'unavailable';
+  source: 'gocollect' | 'ebay_estimate' | 'manual' | 'unavailable';
   fmv: FMVData | null;
   trend?: {
     direction: 'up' | 'down' | 'stable';
@@ -26,6 +26,21 @@ interface ValuationResult {
     grade: string;
     date: string;
   }>;
+  // eBay-specific data
+  ebayData?: {
+    averageAskingPrice?: number;
+    estimatedSoldPrice?: number;
+    lowestPrice?: number;
+    highestPrice?: number;
+    listingCount: number;
+    listings?: Array<{
+      title: string;
+      price: number;
+      condition: string;
+      imageUrl?: string;
+      itemUrl: string;
+    }>;
+  };
   error?: string;
 }
 
@@ -43,7 +58,7 @@ function getCacheKey(title: string, issueNumber: string, publisher?: string): st
 }
 
 export function useComicValuation(options: UseComicValuationOptions = {}) {
-  const { autoRetry = true, cacheResults = true } = options;
+  const { cacheResults = true } = options;
   const [isLoading, setIsLoading] = useState(false);
   const [lastResult, setLastResult] = useState<ValuationResult | null>(null);
   const { toast } = useToast();
@@ -53,7 +68,8 @@ export function useComicValuation(options: UseComicValuationOptions = {}) {
     issueNumber: string,
     publisher?: string,
     grade?: number,
-    certNumber?: string
+    certNumber?: string,
+    gradeStatus?: string
   ): Promise<ValuationResult> => {
     const cacheKey = getCacheKey(title, issueNumber, publisher);
     
@@ -69,22 +85,19 @@ export function useComicValuation(options: UseComicValuationOptions = {}) {
     setIsLoading(true);
 
     try {
-      // Try GoCollect first
-      const { data, error } = await supabase.functions.invoke('fetch-gocollect-value', {
+      // Tier 1: Try GoCollect first
+      console.log('Tier 1: Trying GoCollect...');
+      const { data: goCollectData, error: goCollectError } = await supabase.functions.invoke('fetch-gocollect-value', {
         body: { title, issue_number: issueNumber, publisher, grade, cert_number: certNumber }
       });
 
-      if (error) {
-        throw new Error(error.message || 'Failed to fetch valuation');
-      }
-
-      if (data?.success) {
+      if (!goCollectError && goCollectData?.success) {
         const result: ValuationResult = {
           success: true,
           source: 'gocollect',
-          fmv: data.fmv,
-          trend: data.trend,
-          recentSales: data.recent_sales,
+          fmv: goCollectData.fmv,
+          trend: goCollectData.trend,
+          recentSales: goCollectData.recent_sales,
         };
 
         if (cacheResults) {
@@ -95,12 +108,47 @@ export function useComicValuation(options: UseComicValuationOptions = {}) {
         return result;
       }
 
-      // GoCollect returned an error response
+      // Tier 2: Try eBay estimation
+      console.log('Tier 2: Trying eBay estimate...');
+      const { data: ebayData, error: ebayError } = await supabase.functions.invoke('fetch-ebay-prices', {
+        body: { title, issueNumber, publisher, grade, gradeStatus }
+      });
+
+      if (!ebayError && ebayData?.success && ebayData?.listingCount > 0) {
+        // Convert eBay data to FMV format
+        const estimatedValue = ebayData.estimatedSoldPrice || ebayData.averageAskingPrice;
+        const result: ValuationResult = {
+          success: true,
+          source: 'ebay_estimate',
+          fmv: {
+            current: estimatedValue,
+            raw: gradeStatus === 'raw' ? estimatedValue : undefined,
+          },
+          ebayData: {
+            averageAskingPrice: ebayData.averageAskingPrice,
+            estimatedSoldPrice: ebayData.estimatedSoldPrice,
+            lowestPrice: ebayData.lowestPrice,
+            highestPrice: ebayData.highestPrice,
+            listingCount: ebayData.listingCount,
+            listings: ebayData.listings,
+          },
+        };
+
+        if (cacheResults) {
+          valuationCache.set(cacheKey, { data: result, timestamp: Date.now() });
+        }
+
+        setLastResult(result);
+        return result;
+      }
+
+      // Tier 3: No automated valuation available
+      console.log('Tier 3: No automated valuation available');
       const result: ValuationResult = {
         success: false,
         source: 'unavailable',
         fmv: null,
-        error: data?.error || 'Comic not found in valuation database',
+        error: 'No valuation data available. You can enter a manual value.',
       };
 
       setLastResult(result);
@@ -115,8 +163,7 @@ export function useComicValuation(options: UseComicValuationOptions = {}) {
       if (!errorMessage.includes('not found')) {
         toast({
           title: 'Valuation Unavailable',
-          description: errorMessage,
-          variant: 'destructive',
+          description: 'Could not fetch pricing data. You can enter a manual value.',
         });
       }
 
@@ -162,6 +209,20 @@ export function useComicValuation(options: UseComicValuationOptions = {}) {
     return fmv[grade as keyof FMVData] as number | undefined;
   }, []);
 
+  // Get source display label
+  const getSourceLabel = useCallback((source: ValuationResult['source']): string => {
+    switch (source) {
+      case 'gocollect':
+        return 'GoCollect FMV';
+      case 'ebay_estimate':
+        return 'eBay Estimate';
+      case 'manual':
+        return 'Manual Entry';
+      default:
+        return 'Unknown';
+    }
+  }, []);
+
   return {
     isLoading,
     lastResult,
@@ -169,5 +230,6 @@ export function useComicValuation(options: UseComicValuationOptions = {}) {
     clearCache,
     formatValue,
     getValueAtGrade,
+    getSourceLabel,
   };
 }

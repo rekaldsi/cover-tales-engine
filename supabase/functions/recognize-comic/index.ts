@@ -252,15 +252,32 @@ JSON schema:
 
       if (comicVineData) {
         console.log('ComicVine match found:', comicVineData.coverImageUrl ? 'with cover' : 'no cover');
-        // Merge ComicVine data with AI data (ComicVine takes priority for official data)
+        
+        // Check if AI detected a variant - if so, DON'T replace the cover
+        const isVariant = comicData.variant && 
+          (comicData.variant.toLowerCase().includes('variant') ||
+           comicData.variant.toLowerCase().includes('virgin') ||
+           comicData.variant.toLowerCase().includes('1:') ||
+           comicData.variant.toLowerCase().includes('cover b') ||
+           comicData.variant.toLowerCase().includes('cover c') ||
+           comicData.variant.toLowerCase().includes('incentive') ||
+           comicData.variant.toLowerCase().includes('exclusive'));
+        
+        // Merge ComicVine data with AI data
         comicData = {
           ...comicData,
           comicvineId: comicVineData.comicvineId,
-          coverImageUrl: comicVineData.coverImageUrl, // Official cover URL
+          // Only use ComicVine cover if NOT a variant (preserve variant covers)
+          coverImageUrl: isVariant ? comicData.coverImageUrl : comicVineData.coverImageUrl,
           title: comicVineData.title || comicData.title,
           coverDate: comicVineData.coverDate || comicData.coverDate,
           publisher: comicVineData.publisher || comicData.publisher,
+          isVariant: isVariant || false, // Flag for UI to show cover selection
         };
+        
+        if (isVariant) {
+          console.log('Variant detected - preserving AI-identified cover, flagging for cover selection');
+        }
       } else {
         console.log('No ComicVine match, using AI data only');
       }
