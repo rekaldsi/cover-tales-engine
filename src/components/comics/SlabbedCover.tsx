@@ -1,4 +1,5 @@
 import { cn } from '@/lib/utils';
+import { Star } from 'lucide-react';
 import type { GradeStatus } from '@/types/comic';
 
 interface SlabbedCoverProps {
@@ -7,15 +8,15 @@ interface SlabbedCoverProps {
   issueNumber: string;
   gradeStatus: GradeStatus;
   grade?: string;
-  certNumber?: string;
+  isKeyIssue?: boolean;
   className?: string;
 }
 
-const SLAB_COLORS: Record<GradeStatus, { border: string; bg: string; label: string }> = {
-  raw: { border: 'border-muted', bg: 'bg-muted/20', label: '' },
-  cgc: { border: 'border-blue-500', bg: 'bg-blue-500/10', label: 'CGC' },
-  cbcs: { border: 'border-red-500', bg: 'bg-red-500/10', label: 'CBCS' },
-  pgx: { border: 'border-yellow-500', bg: 'bg-yellow-500/10', label: 'PGX' },
+const SLAB_COLORS: Record<GradeStatus, { border: string; label: string }> = {
+  raw: { border: 'border-border', label: '' },
+  cgc: { border: 'border-blue-500/60', label: 'CGC' },
+  cbcs: { border: 'border-red-500/60', label: 'CBCS' },
+  pgx: { border: 'border-amber-500/60', label: 'PGX' },
 };
 
 export function SlabbedCover({
@@ -24,98 +25,68 @@ export function SlabbedCover({
   issueNumber,
   gradeStatus,
   grade,
-  certNumber,
+  isKeyIssue,
   className,
 }: SlabbedCoverProps) {
   const isGraded = gradeStatus !== 'raw';
   const colors = SLAB_COLORS[gradeStatus];
 
+  // Cover image component
+  const CoverImage = () => (
+    coverUrl ? (
+      <img
+        src={coverUrl}
+        alt={`${title} #${issueNumber}`}
+        className="w-full h-full object-cover"
+      />
+    ) : (
+      <div className="w-full h-full bg-muted flex items-center justify-center">
+        <span className="text-muted-foreground/50 text-xs">No Cover</span>
+      </div>
+    )
+  );
+
+  // Key issue indicator
+  const KeyIndicator = () => isKeyIssue ? (
+    <div className="absolute bottom-2 right-2 z-10">
+      <Star className="h-4 w-4 fill-amber-500 text-amber-500" />
+    </div>
+  ) : null;
+
   if (!isGraded) {
-    // Raw comic - show cover without slab frame
+    // Raw comic - simple cover
     return (
-      <div className={cn('relative aspect-[2/3] rounded-lg overflow-hidden', className)}>
-        {coverUrl ? (
-          <img
-            src={coverUrl}
-            alt={`${title} #${issueNumber}`}
-            className="w-full h-full object-cover"
-          />
-        ) : (
-          <div className="w-full h-full bg-muted flex items-center justify-center">
-            <span className="text-muted-foreground text-sm">No Cover</span>
-          </div>
-        )}
+      <div className={cn('relative aspect-[2/3] rounded overflow-hidden', className)}>
+        <CoverImage />
+        <KeyIndicator />
       </div>
     );
   }
 
-  // Graded comic - show with slab frame
+  // Graded comic - with slab frame
   return (
     <div className={cn('relative', className)}>
-      {/* Slab outer frame */}
       <div className={cn(
-        'relative rounded-lg border-4 p-1.5',
-        colors.border,
-        colors.bg
+        'relative rounded border-2 p-1',
+        colors.border
       )}>
-        {/* Grade label header */}
+        {/* Consolidated label: Company + Grade */}
         <div className={cn(
-          'absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-0.5 rounded text-xs font-bold tracking-wider',
+          'absolute -top-2.5 left-1/2 -translate-x-1/2 px-2 py-0.5 rounded text-[10px] font-bold tracking-wide z-10',
           gradeStatus === 'cgc' && 'bg-blue-500 text-white',
           gradeStatus === 'cbcs' && 'bg-red-500 text-white',
-          gradeStatus === 'pgx' && 'bg-yellow-500 text-black',
+          gradeStatus === 'pgx' && 'bg-amber-500 text-black',
         )}>
-          {colors.label}
+          {colors.label} {grade}
         </div>
 
-        {/* Inner holder */}
+        {/* Cover */}
         <div className="relative rounded overflow-hidden bg-background">
-          {/* Cover image */}
           <div className="aspect-[2/3]">
-            {coverUrl ? (
-              <img
-                src={coverUrl}
-                alt={`${title} #${issueNumber}`}
-                className="w-full h-full object-cover"
-              />
-            ) : (
-              <div className="w-full h-full bg-muted flex items-center justify-center">
-                <span className="text-muted-foreground text-sm">No Cover</span>
-              </div>
-            )}
+            <CoverImage />
           </div>
-
-          {/* Grade badge */}
-          {grade && (
-            <div className={cn(
-              'absolute bottom-2 right-2 px-2 py-1 rounded text-sm font-bold',
-              gradeStatus === 'cgc' && 'bg-blue-500 text-white',
-              gradeStatus === 'cbcs' && 'bg-red-500 text-white',
-              gradeStatus === 'pgx' && 'bg-yellow-500 text-black',
-            )}>
-              {grade}
-            </div>
-          )}
+          <KeyIndicator />
         </div>
-
-        {/* Cert number footer */}
-        {certNumber && (
-          <div className="mt-1 text-center">
-            <span className="text-[10px] text-muted-foreground font-mono">
-              #{certNumber}
-            </span>
-          </div>
-        )}
-      </div>
-
-      {/* Graded indicator badge */}
-      <div className={cn(
-        'absolute -top-1 -right-1 w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold',
-        gradeStatus === 'cgc' && 'bg-blue-500 text-white',
-        gradeStatus === 'cbcs' && 'bg-red-500 text-white',
-        gradeStatus === 'pgx' && 'bg-yellow-500 text-black',
-      )}>
-        ✓
       </div>
     </div>
   );
