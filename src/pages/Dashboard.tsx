@@ -5,6 +5,7 @@ import { StatCard } from '@/components/comics/StatCard';
 import { EraChart } from '@/components/comics/EraChart';
 import { RecentlyAddedCarousel } from '@/components/comics/RecentlyAddedCarousel';
 import { ComicDetailSheet } from '@/components/comics/ComicDetailSheet';
+import { SigningRecommendations } from '@/components/signings/SigningRecommendations';
 import { Comic } from '@/types/comic';
 import { Library, DollarSign, Star, TrendingUp, Loader2 } from 'lucide-react';
 import { Progress } from '@/components/ui/progress';
@@ -110,6 +111,9 @@ export default function Dashboard() {
           onComicClick={setSelectedComic}
         />
       </section>
+
+      {/* Signing Recommendations */}
+      <SigningRecommendations comics={comics} />
       
       {/* Era Distribution */}
       <section className="grid lg:grid-cols-2 gap-6">
