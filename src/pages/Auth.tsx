@@ -7,7 +7,8 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
-import { BookOpen, Loader2 } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
+import { KodexLogo } from '@/components/brand/KodexLogo';
 
 export default function Auth() {
   const [email, setEmail] = useState('');
@@ -67,9 +68,7 @@ export default function Auth() {
       <div className="w-full max-w-md">
         {/* Logo */}
         <div className="flex items-center justify-center gap-3 mb-8">
-          <div className="w-12 h-12 rounded-xl bg-primary/20 flex items-center justify-center">
-            <BookOpen className="w-7 h-7 text-primary" />
-          </div>
+          <KodexLogo className="w-12 h-12" />
           <h1 className="text-3xl font-display gradient-text">KØDEX</h1>
         </div>
 
