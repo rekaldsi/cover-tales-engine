@@ -1,15 +1,12 @@
 import { useState } from 'react';
-import { Routes, Route } from 'react-router-dom';
 import { Header } from '@/components/layout/Header';
 import { MobileNav } from '@/components/layout/MobileNav';
 import { AddComicDialog } from '@/components/comics/AddComicDialog';
 import { useComicCollection } from '@/hooks/useComicCollection';
-import Dashboard from './Dashboard';
-import Collection from './Collection';
 import Insights from './Insights';
 import { useToast } from '@/hooks/use-toast';
 
-export default function Index() {
+export default function InsightsPage() {
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
   const { addComic } = useComicCollection();
@@ -36,7 +33,7 @@ export default function Index() {
       />
       
       <main className="container py-6 pb-20">
-        <Dashboard />
+        <Insights />
       </main>
       
       <AddComicDialog
