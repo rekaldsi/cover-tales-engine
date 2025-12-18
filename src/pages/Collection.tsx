@@ -12,7 +12,7 @@ type ViewMode = 'grid' | 'list';
 type SortOption = 'dateAdded' | 'title' | 'value' | 'issue';
 
 export default function Collection() {
-  const { comics, deleteComic } = useComicCollection();
+  const { comics, deleteComic, updateComic } = useComicCollection();
   const [selectedComic, setSelectedComic] = useState<Comic | null>(null);
   const [viewMode, setViewMode] = useState<ViewMode>('grid');
   const [searchQuery, setSearchQuery] = useState('');
@@ -210,6 +210,7 @@ export default function Collection() {
         open={!!selectedComic}
         onOpenChange={(open) => !open && setSelectedComic(null)}
         onDelete={deleteComic}
+        onUpdate={updateComic}
       />
     </div>
   );

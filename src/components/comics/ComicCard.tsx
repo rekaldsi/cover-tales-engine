@@ -1,6 +1,6 @@
 import { Comic, ERA_LABELS } from '@/types/comic';
 import { Badge } from '@/components/ui/badge';
-import { Star, Award } from 'lucide-react';
+import { Star, ImageOff } from 'lucide-react';
 import { SlabbedCover } from './SlabbedCover';
 
 interface ComicCardProps {
@@ -14,6 +14,7 @@ export function ComicCard({ comic, onClick }: ComicCardProps) {
     : null;
   
   const isGraded = comic.gradeStatus !== 'raw';
+  const hasMissingData = !comic.coverImage || !comic.writer || !comic.artist;
     
   return (
     <article 
@@ -38,6 +39,15 @@ export function ComicCard({ comic, onClick }: ComicCardProps) {
             <Badge className="bg-accent text-accent-foreground gap-1 shadow-lg">
               <Star className="h-3 w-3 fill-current" />
               KEY
+            </Badge>
+          </div>
+        )}
+        
+        {/* Missing Data Indicator */}
+        {hasMissingData && (
+          <div className="absolute top-4 right-4 z-10">
+            <Badge variant="outline" className="bg-card/90 backdrop-blur-sm text-muted-foreground gap-1">
+              <ImageOff className="h-3 w-3" />
             </Badge>
           </div>
         )}

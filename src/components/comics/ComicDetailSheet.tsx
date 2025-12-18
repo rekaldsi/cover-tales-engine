@@ -1,18 +1,36 @@
+import { useEffect, useState } from 'react';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Comic, ERA_LABELS } from '@/types/comic';
-import { Star, Award, Calendar, User, MapPin, Trash2, ExternalLink } from 'lucide-react';
+import { Star, Award, Calendar, User, MapPin, Trash2, ExternalLink, Loader2 } from 'lucide-react';
+import { useComicEnrichment } from '@/hooks/useComicEnrichment';
 
 interface ComicDetailSheetProps {
   comic: Comic | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onDelete: (id: string) => void;
+  onUpdate: (id: string, updates: Partial<Comic>) => Promise<void>;
 }
 
-export function ComicDetailSheet({ comic, open, onOpenChange, onDelete }: ComicDetailSheetProps) {
-  if (!comic) return null;
+export function ComicDetailSheet({ comic, open, onOpenChange, onDelete, onUpdate }: ComicDetailSheetProps) {
+  const { enrichComic, needsEnrichment, isEnriching } = useComicEnrichment();
+  const [enrichedComic, setEnrichedComic] = useState<Comic | null>(null);
+
+  // Auto-enrich when sheet opens
+  useEffect(() => {
+    if (open && comic && needsEnrichment(comic)) {
+      enrichComic(comic, onUpdate).then(setEnrichedComic);
+    } else if (comic) {
+      setEnrichedComic(comic);
+    }
+  }, [open, comic?.id]);
+
+  // Use enriched data if available, otherwise use original
+  const displayComic = enrichedComic || comic;
+  
+  if (!displayComic) return null;
   
   const formatCurrency = (value?: number) => {
     if (!value) return null;
@@ -28,46 +46,54 @@ export function ComicDetailSheet({ comic, open, onOpenChange, onDelete }: ComicD
     });
   };
   
-  const profit = comic.currentValue && comic.purchasePrice 
-    ? comic.currentValue - comic.purchasePrice 
+  const profit = displayComic.currentValue && displayComic.purchasePrice 
+    ? displayComic.currentValue - displayComic.purchasePrice 
     : null;
   
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent className="w-full sm:max-w-lg overflow-y-auto bg-card border-border">
         <SheetHeader className="sr-only">
-          <SheetTitle>{comic.title} #{comic.issueNumber}</SheetTitle>
+          <SheetTitle>{displayComic.title} #{displayComic.issueNumber}</SheetTitle>
         </SheetHeader>
+        
+        {/* Enrichment Loading Indicator */}
+        {isEnriching && (
+          <div className="flex items-center gap-2 text-sm text-muted-foreground mb-4 p-2 bg-secondary/50 rounded-lg">
+            <Loader2 className="h-4 w-4 animate-spin" />
+            Fetching details from ComicVine...
+          </div>
+        )}
         
         {/* Cover Image */}
         <div className="relative aspect-[2/3] rounded-lg overflow-hidden bg-secondary -mx-2 mb-6">
-          {comic.coverImage ? (
+          {displayComic.coverImage ? (
             <img 
-              src={comic.coverImage} 
-              alt={`${comic.title} #${comic.issueNumber}`}
+              src={displayComic.coverImage} 
+              alt={`${displayComic.title} #${displayComic.issueNumber}`}
               className="w-full h-full object-cover"
             />
           ) : (
             <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-secondary to-muted">
               <div className="text-center p-4">
-                <p className="font-display text-3xl text-muted-foreground">{comic.title}</p>
-                <p className="text-5xl font-display text-primary">#{comic.issueNumber}</p>
+                <p className="font-display text-3xl text-muted-foreground">{displayComic.title}</p>
+                <p className="text-5xl font-display text-primary">#{displayComic.issueNumber}</p>
               </div>
             </div>
           )}
           
           {/* Badges */}
           <div className="absolute top-4 left-4 right-4 flex justify-between">
-            {comic.isKeyIssue && (
+            {displayComic.isKeyIssue && (
               <Badge className="bg-accent text-accent-foreground gap-1 shadow-lg">
                 <Star className="h-3 w-3 fill-current" />
                 KEY ISSUE
               </Badge>
             )}
-            {comic.grade && (
+            {displayComic.grade && (
               <Badge variant="secondary" className="bg-card/90 backdrop-blur-sm shadow-lg ml-auto">
                 <Award className="h-3 w-3 mr-1" />
-                {comic.gradeStatus.toUpperCase()} {comic.grade}
+                {displayComic.gradeStatus.toUpperCase()} {displayComic.grade}
               </Badge>
             )}
           </div>
@@ -76,42 +102,42 @@ export function ComicDetailSheet({ comic, open, onOpenChange, onDelete }: ComicD
         {/* Title */}
         <div className="space-y-1 mb-6">
           <h2 className="font-display text-4xl tracking-tight text-foreground">
-            {comic.title}
+            {displayComic.title}
           </h2>
           <p className="text-xl text-muted-foreground">
-            #{comic.issueNumber} {comic.variant && `• ${comic.variant}`}
+            #{displayComic.issueNumber} {displayComic.variant && `• ${displayComic.variant}`}
           </p>
           <div className="flex items-center gap-2 pt-2">
-            <span className={`era-badge era-${comic.era}`}>
-              {ERA_LABELS[comic.era]}
+            <span className={`era-badge era-${displayComic.era}`}>
+              {ERA_LABELS[displayComic.era]}
             </span>
-            <span className="text-sm text-muted-foreground">{comic.publisher}</span>
+            <span className="text-sm text-muted-foreground">{displayComic.publisher}</span>
           </div>
         </div>
         
         {/* Key Issue Reason */}
-        {comic.isKeyIssue && comic.keyIssueReason && (
+        {displayComic.isKeyIssue && displayComic.keyIssueReason && (
           <div className="p-4 rounded-lg bg-accent/10 border border-accent/20 mb-6">
             <p className="text-sm font-medium text-accent">
               <Star className="h-4 w-4 inline mr-2" />
-              {comic.keyIssueReason}
+              {displayComic.keyIssueReason}
             </p>
           </div>
         )}
         
         {/* Value Section */}
-        {(comic.currentValue || comic.purchasePrice) && (
+        {(displayComic.currentValue || displayComic.purchasePrice) && (
           <div className="grid grid-cols-2 gap-4 mb-6">
-            {comic.currentValue && (
+            {displayComic.currentValue && (
               <div className="stat-card">
                 <p className="text-xs text-muted-foreground uppercase tracking-wider">Current Value</p>
-                <p className="text-2xl font-display gold-text">{formatCurrency(comic.currentValue)}</p>
+                <p className="text-2xl font-display gold-text">{formatCurrency(displayComic.currentValue)}</p>
               </div>
             )}
-            {comic.purchasePrice && (
+            {displayComic.purchasePrice && (
               <div className="stat-card">
                 <p className="text-xs text-muted-foreground uppercase tracking-wider">Paid</p>
-                <p className="text-2xl font-display text-foreground">{formatCurrency(comic.purchasePrice)}</p>
+                <p className="text-2xl font-display text-foreground">{formatCurrency(displayComic.purchasePrice)}</p>
               </div>
             )}
             {profit !== null && (
@@ -130,23 +156,23 @@ export function ComicDetailSheet({ comic, open, onOpenChange, onDelete }: ComicD
           <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Details</h3>
           
           <div className="space-y-3">
-            {comic.coverDate && (
-              <DetailRow icon={Calendar} label="Cover Date" value={formatDate(comic.coverDate)} />
+            {displayComic.coverDate && (
+              <DetailRow icon={Calendar} label="Cover Date" value={formatDate(displayComic.coverDate)} />
             )}
-            {comic.writer && (
-              <DetailRow icon={User} label="Writer" value={comic.writer} />
+            {displayComic.writer && (
+              <DetailRow icon={User} label="Writer" value={displayComic.writer} />
             )}
-            {comic.artist && (
-              <DetailRow icon={User} label="Artist" value={comic.artist} />
+            {displayComic.artist && (
+              <DetailRow icon={User} label="Artist" value={displayComic.artist} />
             )}
-            {comic.location && (
-              <DetailRow icon={MapPin} label="Location" value={comic.location} />
+            {displayComic.location && (
+              <DetailRow icon={MapPin} label="Location" value={displayComic.location} />
             )}
-            {comic.certNumber && (
+            {displayComic.certNumber && (
               <DetailRow 
                 icon={ExternalLink} 
                 label="Cert #" 
-                value={comic.certNumber}
+                value={displayComic.certNumber}
                 isLink
               />
             )}
@@ -154,10 +180,10 @@ export function ComicDetailSheet({ comic, open, onOpenChange, onDelete }: ComicD
         </div>
         
         {/* Notes */}
-        {comic.notes && (
+        {displayComic.notes && (
           <div className="space-y-2 mb-6">
             <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Notes</h3>
-            <p className="text-sm text-foreground/80">{comic.notes}</p>
+            <p className="text-sm text-foreground/80">{displayComic.notes}</p>
           </div>
         )}
         
@@ -170,7 +196,7 @@ export function ComicDetailSheet({ comic, open, onOpenChange, onDelete }: ComicD
             variant="destructive" 
             size="icon"
             onClick={() => {
-              onDelete(comic.id);
+              onDelete(displayComic.id);
               onOpenChange(false);
             }}
           >
@@ -179,7 +205,7 @@ export function ComicDetailSheet({ comic, open, onOpenChange, onDelete }: ComicD
         </div>
         
         <p className="text-xs text-muted-foreground text-center mt-4">
-          Added {formatDate(comic.dateAdded)}
+          Added {formatDate(displayComic.dateAdded)}
         </p>
       </SheetContent>
     </Sheet>
