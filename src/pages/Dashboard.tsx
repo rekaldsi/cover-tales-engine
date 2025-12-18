@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useComicCollection } from '@/hooks/useComicCollection';
 import { useBackgroundEnrichment } from '@/hooks/useBackgroundEnrichment';
+import { usePortfolioSnapshots } from '@/hooks/usePortfolioSnapshots';
 import { StatCard } from '@/components/comics/StatCard';
 import { EraChart } from '@/components/comics/EraChart';
 import { RecentlyAddedCarousel } from '@/components/comics/RecentlyAddedCarousel';
@@ -8,6 +9,7 @@ import { ComicDetailSheet } from '@/components/comics/ComicDetailSheet';
 import { SigningRecommendations } from '@/components/signings/SigningRecommendations';
 import { GoCollectImport } from '@/components/import/GoCollectImport';
 import { EmptyCollectionState } from '@/components/dashboard/EmptyCollectionState';
+import { PortfolioChart } from '@/components/dashboard/PortfolioChart';
 import { Comic } from '@/types/comic';
 import { Library, DollarSign, Star, TrendingUp, Loader2 } from 'lucide-react';
 import { Progress } from '@/components/ui/progress';
@@ -20,11 +22,24 @@ interface DashboardProps {
 export default function Dashboard({ onAddClick, onHuntingClick }: DashboardProps) {
   const { comics, getStats, deleteComic, updateComic, refetch } = useComicCollection();
   const { progress, isEnriching } = useBackgroundEnrichment(comics, updateComic);
+  const { snapshots, trend, saveSnapshot } = usePortfolioSnapshots();
   const stats = getStats();
   const [selectedComic, setSelectedComic] = useState<Comic | null>(null);
   
   const keyIssueCount = comics.filter(c => c.isKeyIssue).length;
   const gradedCount = comics.filter(c => c.gradeStatus !== 'raw').length;
+  
+  // Auto-save portfolio snapshot when stats change
+  useEffect(() => {
+    if (comics.length > 0 && stats.totalValue > 0) {
+      saveSnapshot({
+        totalValue: stats.totalValue,
+        comicCount: stats.totalComics,
+        gradedCount,
+        keyIssueCount,
+      });
+    }
+  }, [stats.totalValue, stats.totalComics, gradedCount, keyIssueCount, saveSnapshot, comics.length]);
   
   const formatCurrency = (value: number) => {
     if (value >= 1000) {
@@ -142,6 +157,15 @@ export default function Dashboard({ onAddClick, onHuntingClick }: DashboardProps
         <RecentlyAddedCarousel 
           comics={stats.recentlyAdded}
           onComicClick={setSelectedComic}
+        />
+      </section>
+
+      {/* Portfolio Value Chart */}
+      <section className="animate-slide-up">
+        <PortfolioChart 
+          snapshots={snapshots} 
+          trend={trend} 
+          currentValue={stats.totalValue} 
         />
       </section>
 

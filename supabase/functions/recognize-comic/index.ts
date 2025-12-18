@@ -230,6 +230,11 @@ JSON schema:
     try {
       const cleanContent = content.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
       comicData = JSON.parse(cleanContent);
+      
+      // Clean issue number - remove leading # if present (AI sometimes returns "#1" instead of "1")
+      if (comicData.issueNumber) {
+        comicData.issueNumber = comicData.issueNumber.toString().replace(/^#/, '').trim();
+      }
     } catch (parseError) {
       console.error('Failed to parse AI response:', content);
       return new Response(

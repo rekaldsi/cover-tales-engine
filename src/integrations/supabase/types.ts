@@ -14,6 +14,39 @@ export type Database = {
   }
   public: {
     Tables: {
+      collection_snapshots: {
+        Row: {
+          comic_count: number
+          created_at: string
+          graded_count: number
+          id: string
+          key_issue_count: number
+          snapshot_date: string
+          total_value: number
+          user_id: string
+        }
+        Insert: {
+          comic_count?: number
+          created_at?: string
+          graded_count?: number
+          id?: string
+          key_issue_count?: number
+          snapshot_date?: string
+          total_value?: number
+          user_id: string
+        }
+        Update: {
+          comic_count?: number
+          created_at?: string
+          graded_count?: number
+          id?: string
+          key_issue_count?: number
+          snapshot_date?: string
+          total_value?: number
+          user_id?: string
+        }
+        Relationships: []
+      }
       comics: {
         Row: {
           artist: string | null

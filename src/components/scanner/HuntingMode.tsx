@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -21,11 +21,14 @@ import {
   Plus,
   RotateCcw,
   Flame,
-  Sparkles
+  Sparkles,
+  LogIn
 } from 'lucide-react';
 import { BarcodeScanner, type ParsedUPC } from './BarcodeScanner';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/contexts/AuthContext';
+import { useHuntingFeedback } from '@/hooks/useHuntingFeedback';
 import type { Comic } from '@/types/comic';
 
 interface HuntingModeProps {
@@ -69,7 +72,7 @@ function VerdictBadge({ verdict }: { verdict: Verdict }) {
     get: { 
       icon: Flame, 
       label: 'GET IT!', 
-      className: 'bg-green-500/20 text-green-400 border-green-500/30' 
+      className: 'bg-green-500/20 text-green-400 border-green-500/30 animate-pulse' 
     },
     consider: { 
       icon: AlertCircle, 
@@ -100,6 +103,8 @@ export function HuntingMode({ open, onOpenChange, onAddToCollection, ownedComics
   const [searchTitle, setSearchTitle] = useState('');
   const [searchIssue, setSearchIssue] = useState('');
   const { toast } = useToast();
+  const { user } = useAuth();
+  const { triggerFeedback } = useHuntingFeedback();
 
   const checkIfOwned = useCallback((title: string, issueNumber: string) => {
     return ownedComics.some(
@@ -182,6 +187,9 @@ export function HuntingMode({ open, onOpenChange, onAddToCollection, ownedComics
 
       partialResult.verdict = getVerdict(partialResult);
       setResult(partialResult);
+      
+      // Trigger audio/haptic feedback based on verdict
+      triggerFeedback(partialResult.verdict, partialResult.isKeyIssue);
 
     } catch (err) {
       console.error('Hunting lookup error:', err);
@@ -193,7 +201,7 @@ export function HuntingMode({ open, onOpenChange, onAddToCollection, ownedComics
     } finally {
       setIsSearching(false);
     }
-  }, [checkIfOwned, toast]);
+  }, [checkIfOwned, toast, triggerFeedback]);
 
   const handleBarcodeScan = useCallback(async (barcode: string, format: string, parsedUPC?: ParsedUPC) => {
     console.log('Hunting mode scan:', barcode, format);
@@ -207,7 +215,19 @@ export function HuntingMode({ open, onOpenChange, onAddToCollection, ownedComics
   }, [searchTitle, searchIssue, lookupComic]);
 
   const handleAddToCollection = useCallback(() => {
-    if (!result || !onAddToCollection) return;
+    if (!result) return;
+    
+    // Check if user is authenticated
+    if (!user) {
+      toast({
+        title: 'Login Required',
+        description: 'Please log in to add comics to your collection.',
+        variant: 'destructive',
+      });
+      return;
+    }
+    
+    if (!onAddToCollection) return;
     
     onAddToCollection({
       title: result.title,
@@ -228,7 +248,7 @@ export function HuntingMode({ open, onOpenChange, onAddToCollection, ownedComics
 
     // Reset for next scan
     handleReset();
-  }, [result, onAddToCollection, toast]);
+  }, [result, onAddToCollection, toast, user]);
 
   const handleReset = useCallback(() => {
     setResult(null);
@@ -260,6 +280,14 @@ export function HuntingMode({ open, onOpenChange, onAddToCollection, ownedComics
         </DialogHeader>
 
         <div className="p-4">
+          {/* Auth Warning */}
+          {!user && (
+            <div className="mb-4 p-3 bg-yellow-500/10 border border-yellow-500/30 rounded-lg flex items-center gap-2 text-sm text-yellow-400">
+              <LogIn className="w-4 h-4 shrink-0" />
+              <span>Log in to save comics to your collection</span>
+            </div>
+          )}
+
           {/* Results Display */}
           {result ? (
             <div className="space-y-4 animate-fade-in">
@@ -333,9 +361,10 @@ export function HuntingMode({ open, onOpenChange, onAddToCollection, ownedComics
                   <Button 
                     className="flex-1 min-h-[48px]" 
                     onClick={handleAddToCollection}
+                    disabled={!user}
                   >
                     <Plus className="w-4 h-4 mr-2" />
-                    Add to Collection
+                    {user ? 'Add to Collection' : 'Login to Add'}
                   </Button>
                 )}
                 <Button 
