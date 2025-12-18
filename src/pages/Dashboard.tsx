@@ -7,11 +7,16 @@ import { RecentlyAddedCarousel } from '@/components/comics/RecentlyAddedCarousel
 import { ComicDetailSheet } from '@/components/comics/ComicDetailSheet';
 import { SigningRecommendations } from '@/components/signings/SigningRecommendations';
 import { GoCollectImport } from '@/components/import/GoCollectImport';
+import { EmptyCollectionState } from '@/components/dashboard/EmptyCollectionState';
 import { Comic } from '@/types/comic';
 import { Library, DollarSign, Star, TrendingUp, Loader2 } from 'lucide-react';
 import { Progress } from '@/components/ui/progress';
 
-export default function Dashboard() {
+interface DashboardProps {
+  onAddClick?: () => void;
+}
+
+export default function Dashboard({ onAddClick }: DashboardProps) {
   const { comics, getStats, deleteComic, updateComic, refetch } = useComicCollection();
   const { progress, isEnriching } = useBackgroundEnrichment(comics, updateComic);
   const stats = getStats();
@@ -26,6 +31,29 @@ export default function Dashboard() {
     }
     return `$${value}`;
   };
+  
+  // Show empty state if no comics
+  if (comics.length === 0) {
+    return (
+      <div className="animate-fade-in">
+        <section className="relative overflow-hidden rounded-2xl p-6 sm:p-8 mb-8">
+          <div className="absolute inset-0 bg-hero-pattern opacity-10" />
+          <div className="absolute inset-0 bg-gradient-to-r from-background via-background/80 to-transparent" />
+          
+          <div className="relative z-10">
+            <h1 className="font-display text-4xl sm:text-5xl tracking-tight">
+              Welcome to <span className="gradient-text">KØDEX</span>
+            </h1>
+            <p className="text-muted-foreground mt-2 max-w-xl">
+              Your personal comic book collection manager. Track, organize, and discover the value of your collection.
+            </p>
+          </div>
+        </section>
+        
+        <EmptyCollectionState onAddClick={onAddClick || (() => {})} />
+      </div>
+    );
+  }
   
   return (
     <div className="space-y-8 animate-fade-in">

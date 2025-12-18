@@ -3,114 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { Comic, CollectionStats, ComicEra, getEraFromDate } from '@/types/comic';
 
-const STORAGE_KEY = 'comic-collection-v3'; // Force refresh with working cover images
-
-// Sample data for demo (used when not authenticated)
-const SAMPLE_COMICS: Comic[] = [
-  {
-    id: '1',
-    title: 'Amazing Spider-Man',
-    issueNumber: '300',
-    volume: 1,
-    coverDate: '1988-05-01',
-    publisher: 'Marvel Comics',
-    variant: 'Newsstand',
-    era: 'copper',
-    writer: 'David Michelinie',
-    artist: 'Todd McFarlane',
-    coverArtist: 'Todd McFarlane',
-    coverImage: 'https://images.unsplash.com/photo-1618519764620-7403abdbdfe9?w=300&h=450&fit=crop',
-    gradeStatus: 'cgc',
-    grade: '9.4',
-    certNumber: '1234567890',
-    purchasePrice: 450,
-    currentValue: 1200,
-    dateAdded: '2024-01-15',
-    isKeyIssue: true,
-    keyIssueReason: '1st Full Appearance of Venom',
-  },
-  {
-    id: '2',
-    title: 'Uncanny X-Men',
-    issueNumber: '266',
-    volume: 1,
-    coverDate: '1990-08-01',
-    publisher: 'Marvel Comics',
-    era: 'copper',
-    writer: 'Chris Claremont',
-    artist: 'Mike Collins',
-    coverArtist: 'Andy Kubert',
-    coverImage: 'https://images.unsplash.com/photo-1612036782180-6f0b6cd846fe?w=300&h=450&fit=crop',
-    gradeStatus: 'raw',
-    purchasePrice: 75,
-    currentValue: 350,
-    dateAdded: '2024-02-20',
-    isKeyIssue: true,
-    keyIssueReason: '1st Appearance of Gambit',
-  },
-  {
-    id: '3',
-    title: 'Batman',
-    issueNumber: '423',
-    volume: 1,
-    coverDate: '1988-09-01',
-    publisher: 'DC Comics',
-    era: 'copper',
-    writer: 'Jim Starlin',
-    artist: 'Dave Cockrum',
-    coverArtist: 'Todd McFarlane',
-    coverImage: 'https://images.unsplash.com/photo-1531259683007-016a7b628fc3?w=300&h=450&fit=crop',
-    gradeStatus: 'cgc',
-    grade: '9.8',
-    certNumber: '9876543210',
-    purchasePrice: 200,
-    currentValue: 800,
-    dateAdded: '2024-03-05',
-    isKeyIssue: true,
-    keyIssueReason: 'Classic Todd McFarlane Cover',
-  },
-  {
-    id: '4',
-    title: 'Saga',
-    issueNumber: '1',
-    volume: 1,
-    coverDate: '2012-03-14',
-    publisher: 'Image Comics',
-    era: 'current',
-    writer: 'Brian K. Vaughan',
-    artist: 'Fiona Staples',
-    coverArtist: 'Fiona Staples',
-    coverImage: 'https://images.unsplash.com/photo-1601645191163-3fc0d5d64e35?w=300&h=450&fit=crop',
-    gradeStatus: 'cgc',
-    grade: '9.6',
-    purchasePrice: 150,
-    currentValue: 400,
-    dateAdded: '2024-03-10',
-    isKeyIssue: true,
-    keyIssueReason: '1st Issue of Award-Winning Series',
-  },
-  {
-    id: '5',
-    title: 'New Mutants',
-    issueNumber: '98',
-    volume: 1,
-    coverDate: '1991-02-01',
-    publisher: 'Marvel Comics',
-    era: 'copper',
-    writer: 'Rob Liefeld & Fabian Nicieza',
-    artist: 'Rob Liefeld',
-    coverArtist: 'Rob Liefeld',
-    coverImage: 'https://images.unsplash.com/photo-1620336655052-b57986f5a26a?w=300&h=450&fit=crop',
-    gradeStatus: 'cgc',
-    grade: '9.2',
-    certNumber: '5555555555',
-    purchasePrice: 600,
-    currentValue: 1500,
-    dateAdded: '2024-03-15',
-    isKeyIssue: true,
-    keyIssueReason: '1st Appearance of Deadpool',
-  },
-];
+const STORAGE_KEY = 'comic-collection-v4';
 
 // Map database row to Comic type
 function mapDbToComic(row: any): Comic {
@@ -220,14 +113,8 @@ export function useComicCollection() {
         setComics((data || []).map(mapDbToComic));
       }
     } else {
-      // Use localStorage for demo
-      const stored = localStorage.getItem(STORAGE_KEY);
-      if (stored) {
-        setComics(JSON.parse(stored));
-      } else {
-        setComics(SAMPLE_COMICS);
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(SAMPLE_COMICS));
-      }
+      // Not authenticated - show empty state, no demo data
+      setComics([]);
     }
     
     setIsLoading(false);
