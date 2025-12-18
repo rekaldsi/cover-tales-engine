@@ -61,7 +61,7 @@ serve(async (req) => {
     volumeSearchUrl.searchParams.set('limit', '10');
 
     const volumeResponse = await fetch(volumeSearchUrl.toString(), {
-      headers: { 'User-Agent': 'ComicVault/1.0' }
+      headers: { 'User-Agent': 'KODEX/1.0' }
     });
 
     if (!volumeResponse.ok) {
@@ -111,7 +111,7 @@ serve(async (req) => {
     issuesUrl.searchParams.set('field_list', 'id,issue_number,name,image,cover_date,associated_images');
 
     const issuesResponse = await fetch(issuesUrl.toString(), {
-      headers: { 'User-Agent': 'ComicVault/1.0' }
+      headers: { 'User-Agent': 'KODEX/1.0' }
     });
 
     if (!issuesResponse.ok) {

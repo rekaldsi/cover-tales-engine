@@ -75,7 +75,7 @@ serve(async (req) => {
 
     console.log('Searching volumes...');
     const volumeResponse = await fetch(volumeSearchUrl.toString(), {
-      headers: { 'User-Agent': 'ComicVault/1.0' }
+      headers: { 'User-Agent': 'KODEX/1.0' }
     });
 
     if (!volumeResponse.ok) {
@@ -122,7 +122,7 @@ serve(async (req) => {
 
     console.log('Fetching issues for volume:', matchedVolume.id);
     const issuesResponse = await fetch(issuesUrl.toString(), {
-      headers: { 'User-Agent': 'ComicVault/1.0' }
+      headers: { 'User-Agent': 'KODEX/1.0' }
     });
 
     if (!issuesResponse.ok) {
