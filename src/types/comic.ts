@@ -104,6 +104,27 @@ export interface Comic {
   conditionNotes?: string;
   visibleDefects?: string[];
   conditionConfidence?: 'high' | 'medium' | 'low';
+  
+  // Multi-source valuation data
+  valueSources?: ValueSource[];
+  valueConfidence?: 'high' | 'medium' | 'low';
+  valueRange?: { low: number; high: number };
+  dataDiscrepancies?: DataDiscrepancy[];
+  verifiedAt?: string;
+}
+
+export interface ValueSource {
+  source: string;
+  value: number;
+  grade?: string;
+  lastUpdated: string;
+  confidence: 'high' | 'medium' | 'low';
+}
+
+export interface DataDiscrepancy {
+  field: string;
+  sources: { source: string; value: any }[];
+  severity: 'low' | 'medium' | 'high';
 }
 
 export interface CollectionStats {
