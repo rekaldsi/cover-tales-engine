@@ -1,7 +1,14 @@
-import { Plus, Search, Menu } from 'lucide-react';
+import { Plus, Search, Menu, LogOut, User } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Link, useLocation } from 'react-router-dom';
 import { KodexLogo } from '@/components/brand/KodexLogo';
+import { useAuth } from '@/contexts/AuthContext';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 
 interface HeaderProps {
   onAddClick: () => void;
@@ -11,6 +18,11 @@ interface HeaderProps {
 
 export function Header({ onAddClick, onMenuClick, onSearchClick }: HeaderProps) {
   const location = useLocation();
+  const { user, signOut } = useAuth();
+
+  const handleSignOut = async () => {
+    await signOut();
+  };
   
   return (
     <header className="sticky top-0 z-50 glass-panel border-b border-border/30">
@@ -59,6 +71,30 @@ export function Header({ onAddClick, onMenuClick, onSearchClick }: HeaderProps) 
             <Plus className="h-4 w-4" />
             <span className="hidden sm:inline">Add Comic</span>
           </Button>
+          
+          {/* User Menu */}
+          {user ? (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="icon" className="rounded-full">
+                  <User className="h-5 w-5" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-48">
+                <div className="px-2 py-1.5 text-sm text-muted-foreground truncate">
+                  {user.email}
+                </div>
+                <DropdownMenuItem onClick={handleSignOut} className="text-destructive cursor-pointer">
+                  <LogOut className="mr-2 h-4 w-4" />
+                  Sign Out
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          ) : (
+            <Button variant="outline" asChild>
+              <Link to="/auth">Sign In</Link>
+            </Button>
+          )}
         </div>
       </div>
     </header>

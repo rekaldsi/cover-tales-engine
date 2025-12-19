@@ -27,7 +27,10 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
     );
   }
 
-  // Allow access even without auth (demo mode)
+  if (!user) {
+    return <Navigate to="/auth" replace />;
+  }
+
   return <>{children}</>;
 }
 
