@@ -213,6 +213,83 @@ export function useComicCollection() {
     });
   }, [user, comics, toast]);
 
+  // Manual refresh enrichment (ComicVine data)
+  const refreshAllDetails = useCallback(async () => {
+    if (!user || comics.length === 0) return;
+    
+    // Only refresh comics missing creator data
+    const needsEnrichment = comics.filter(c => !c.writer && !c.artist);
+    
+    if (needsEnrichment.length === 0) {
+      toast({
+        title: 'All Details Complete',
+        description: 'All comics already have creator information.',
+      });
+      return;
+    }
+    
+    setIsRefreshingValues(true);
+    setRefreshProgress({ current: 0, total: needsEnrichment.length });
+    
+    let updatedCount = 0;
+    
+    for (let i = 0; i < needsEnrichment.length; i++) {
+      const comic = needsEnrichment[i];
+      setRefreshProgress({ current: i + 1, total: needsEnrichment.length });
+      
+      try {
+        console.log(`[Detail Refresh] Fetching for ${comic.title} #${comic.issueNumber}`);
+        
+        const { data: enrichData } = await supabase.functions.invoke('fetch-comic-cover', {
+          body: {
+            title: comic.title,
+            issueNumber: comic.issueNumber,
+            publisher: comic.publisher,
+          }
+        });
+
+        if (enrichData?.success) {
+          const dbUpdates: Record<string, any> = {};
+          if (enrichData.coverImageUrl && !comic.coverImage) dbUpdates.cover_image_url = enrichData.coverImageUrl;
+          if (enrichData.writer) dbUpdates.writer = enrichData.writer;
+          if (enrichData.artist) dbUpdates.artist = enrichData.artist;
+          if (enrichData.coverArtist) dbUpdates.cover_artist = enrichData.coverArtist;
+          if (enrichData.coverDate && !comic.coverDate) dbUpdates.cover_date = enrichData.coverDate;
+          
+          if (Object.keys(dbUpdates).length > 0) {
+            await supabase.from('comics').update(dbUpdates).eq('id', comic.id);
+            
+            setComics(prev => prev.map(c => 
+              c.id === comic.id 
+                ? { 
+                    ...c, 
+                    coverImage: enrichData.coverImageUrl || c.coverImage,
+                    writer: enrichData.writer || c.writer,
+                    artist: enrichData.artist || c.artist,
+                    coverArtist: enrichData.coverArtist || c.coverArtist,
+                    coverDate: enrichData.coverDate || c.coverDate,
+                  } 
+                : c
+            ));
+            updatedCount++;
+            console.log(`[Detail Refresh] Updated ${comic.title} #${comic.issueNumber}`);
+          }
+        }
+      } catch (err) {
+        console.log(`Failed to refresh details for ${comic.title}:`, err);
+      }
+      
+      // Small delay to avoid rate limiting
+      await new Promise(resolve => setTimeout(resolve, 800));
+    }
+    
+    setIsRefreshingValues(false);
+    toast({
+      title: 'Details Refreshed',
+      description: `Updated ${updatedCount} of ${needsEnrichment.length} comics with creator details.`,
+    });
+  }, [user, comics, toast]);
+
   // Trigger backfill once comics are loaded
   useEffect(() => {
     if (!isLoading && comics.length > 0 && user) {
@@ -286,7 +363,9 @@ export function useComicCollection() {
     if (!newComic.writer && !newComic.artist) {
       setTimeout(async () => {
         try {
-          const { data: enrichData } = await supabase.functions.invoke('fetch-comic-cover', {
+          console.log(`[BG Enrichment] Fetching for ${newComic.title} #${newComic.issueNumber}`);
+          
+          const { data: enrichData, error: enrichError } = await supabase.functions.invoke('fetch-comic-cover', {
             body: {
               title: newComic.title,
               issueNumber: newComic.issueNumber,
@@ -294,8 +373,17 @@ export function useComicCollection() {
             }
           });
           
+          if (enrichError) {
+            console.log('[BG Enrichment] Error:', enrichError);
+            return;
+          }
+          
+          console.log('[BG Enrichment] Response:', enrichData);
+          
           if (enrichData?.success) {
             const dbUpdates: Record<string, any> = {};
+            // Note: API returns coverImageUrl, map to cover_image_url for DB
+            if (enrichData.coverImageUrl) dbUpdates.cover_image_url = enrichData.coverImageUrl;
             if (enrichData.writer) dbUpdates.writer = enrichData.writer;
             if (enrichData.artist) dbUpdates.artist = enrichData.artist;
             if (enrichData.coverArtist) dbUpdates.cover_artist = enrichData.coverArtist;
@@ -303,13 +391,22 @@ export function useComicCollection() {
             if (enrichData.isKeyIssue !== undefined) dbUpdates.is_key_issue = enrichData.isKeyIssue;
             if (enrichData.keyIssueReason) dbUpdates.key_issue_reason = enrichData.keyIssueReason;
             
+            console.log('[BG Enrichment] DB updates:', dbUpdates);
+            
             if (Object.keys(dbUpdates).length > 0) {
-              await supabase.from('comics').update(dbUpdates).eq('id', newComic.id);
-              // Update local state
+              const { error: updateError } = await supabase.from('comics').update(dbUpdates).eq('id', newComic.id);
+              
+              if (updateError) {
+                console.log('[BG Enrichment] Update error:', updateError);
+                return;
+              }
+              
+              // Update local state - map API response to Comic type
               setComics(prev => prev.map(c => 
                 c.id === newComic.id 
                   ? { 
                       ...c, 
+                      coverImage: enrichData.coverImageUrl || c.coverImage,
                       writer: enrichData.writer || c.writer,
                       artist: enrichData.artist || c.artist,
                       coverArtist: enrichData.coverArtist || c.coverArtist,
@@ -319,10 +416,12 @@ export function useComicCollection() {
                     } 
                   : c
               ));
+              
+              console.log('[BG Enrichment] Successfully updated comic');
             }
           }
         } catch (err) {
-          console.log('Background enrichment failed:', err);
+          console.log('[BG Enrichment] Failed:', err);
         }
       }, 100);
     }
@@ -443,6 +542,7 @@ export function useComicCollection() {
     getStats,
     refetch: fetchComics,
     refreshAllValues,
+    refreshAllDetails,
     isRefreshingValues,
     refreshProgress,
   };

@@ -3,9 +3,10 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sh
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Comic, ERA_LABELS, SignatureType } from '@/types/comic';
-import { Star, Award, Calendar, User, MapPin, Trash2, Loader2, PenTool, CheckCircle2, ShieldCheck, Settings } from 'lucide-react';
+import { Star, Award, Calendar, User, MapPin, Trash2, Loader2, PenTool, CheckCircle2, ShieldCheck, Settings, Edit, Palette, BookOpen } from 'lucide-react';
 import { useComicEnrichment } from '@/hooks/useComicEnrichment';
 import { MarkAsSignedDialog } from './MarkAsSignedDialog';
+import { EditComicDialog } from './EditComicDialog';
 import { ShouldIGradeThis } from '@/components/insights/ShouldIGradeThis';
 import { GradingDetails } from './GradingDetails';
 import { GradingDetailsForm } from './GradingDetailsForm';
@@ -25,6 +26,7 @@ export function ComicDetailSheet({ comic, open, onOpenChange, onDelete, onUpdate
   const [enrichedComic, setEnrichedComic] = useState<Comic | null>(null);
   const [signDialogOpen, setSignDialogOpen] = useState(false);
   const [gradingFormOpen, setGradingFormOpen] = useState(false);
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
 
   // Auto-enrich when sheet opens
   useEffect(() => {
@@ -283,6 +285,9 @@ export function ComicDetailSheet({ comic, open, onOpenChange, onDelete, onUpdate
             <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Details</h3>
             
             <div className="space-y-3">
+              {displayComic.publisher && (
+                <DetailRow icon={BookOpen} label="Publisher" value={displayComic.publisher} />
+              )}
               {displayComic.coverDate && (
                 <DetailRow icon={Calendar} label="Cover Date" value={formatDate(displayComic.coverDate)} />
               )}
@@ -290,13 +295,20 @@ export function ComicDetailSheet({ comic, open, onOpenChange, onDelete, onUpdate
                 <DetailRow icon={User} label="Writer" value={displayComic.writer} />
               )}
               {displayComic.artist && (
-                <DetailRow icon={User} label="Artist" value={displayComic.artist} />
+                <DetailRow icon={Palette} label="Artist" value={displayComic.artist} />
               )}
               {displayComic.coverArtist && (
-                <DetailRow icon={User} label="Cover Artist" value={displayComic.coverArtist} />
+                <DetailRow icon={Palette} label="Cover Artist" value={displayComic.coverArtist} />
               )}
               {displayComic.location && (
                 <DetailRow icon={MapPin} label="Location" value={displayComic.location} />
+              )}
+              
+              {/* Show placeholder if no creator data */}
+              {!displayComic.writer && !displayComic.artist && !displayComic.coverArtist && (
+                <p className="text-xs text-muted-foreground italic">
+                  Creator details not available. Click Edit to add manually.
+                </p>
               )}
             </div>
           </div>
@@ -321,7 +333,12 @@ export function ComicDetailSheet({ comic, open, onOpenChange, onDelete, onUpdate
                 Mark Signed
               </Button>
             )}
-            <Button variant="outline" className="flex-1">
+            <Button 
+              variant="outline" 
+              className="flex-1 gap-2"
+              onClick={() => setEditDialogOpen(true)}
+            >
+              <Edit className="h-4 w-4" />
               Edit
             </Button>
             <Button 
@@ -354,6 +371,16 @@ export function ComicDetailSheet({ comic, open, onOpenChange, onDelete, onUpdate
         open={gradingFormOpen}
         onOpenChange={setGradingFormOpen}
         onSave={handleGradingDetailsSave}
+      />
+
+      <EditComicDialog
+        comic={displayComic}
+        open={editDialogOpen}
+        onOpenChange={setEditDialogOpen}
+        onSave={async (updates) => {
+          await onUpdate(displayComic.id, updates);
+          setEnrichedComic(prev => prev ? { ...prev, ...updates } : null);
+        }}
       />
     </>
   );

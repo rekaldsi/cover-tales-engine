@@ -15,7 +15,7 @@ import { PortfolioChart } from '@/components/dashboard/PortfolioChart';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { Comic } from '@/types/comic';
-import { Library, DollarSign, Star, TrendingUp, Loader2, LogIn, RefreshCw } from 'lucide-react';
+import { Library, DollarSign, Star, TrendingUp, Loader2, LogIn, RefreshCw, BookOpen } from 'lucide-react';
 
 interface DashboardProps {
   onAddClick?: () => void;
@@ -23,7 +23,7 @@ interface DashboardProps {
 }
 
 export default function Dashboard({ onAddClick, onHuntingClick }: DashboardProps) {
-  const { comics, getStats, deleteComic, updateComic, refetch, refreshAllValues, isRefreshingValues, refreshProgress } = useComicCollection();
+  const { comics, getStats, deleteComic, updateComic, refetch, refreshAllValues, refreshAllDetails, isRefreshingValues, refreshProgress } = useComicCollection();
   const { progress, isEnriching } = useBackgroundEnrichment(comics, updateComic);
   const { snapshots, trend, saveSnapshot } = usePortfolioSnapshots();
   const { user } = useAuth();
@@ -124,6 +124,25 @@ export default function Dashboard({ onAddClick, onHuntingClick }: DashboardProps
             </p>
           </div>
           <div className="flex flex-col sm:flex-row gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={refreshAllDetails}
+              disabled={isRefreshingValues}
+              className="min-h-[44px]"
+            >
+              {isRefreshingValues ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  {refreshProgress.current}/{refreshProgress.total}
+                </>
+              ) : (
+                <>
+                  <BookOpen className="w-4 h-4 mr-2" />
+                  Refresh Details
+                </>
+              )}
+            </Button>
             <Button
               variant="outline"
               size="sm"

@@ -1,5 +1,6 @@
 import { Comic, ERA_LABELS } from '@/types/comic';
 import { SlabbedCover } from './SlabbedCover';
+import { PenTool } from 'lucide-react';
 
 interface ComicCardProps {
   comic: Comic;
@@ -31,6 +32,14 @@ export function ComicCard({ comic, onClick }: ComicCardProps) {
           grade={comic.grade}
           isKeyIssue={comic.isKeyIssue}
         />
+        
+        {/* Signed Badge */}
+        {comic.isSigned && (
+          <div className="absolute top-3 right-3 bg-comic-green text-white text-[10px] font-bold px-1.5 py-0.5 rounded flex items-center gap-1 shadow-md">
+            <PenTool className="h-2.5 w-2.5" />
+            SIGNED
+          </div>
+        )}
       </div>
       
       {/* Info - simplified */}
