@@ -57,6 +57,9 @@ export interface Comic {
   coverImage?: string;
   era: ComicEra;
   
+  // Copy tracking for duplicates
+  copyNumber?: number;
+  
   // Creators
   writer?: string;
   artist?: string;
