@@ -15,7 +15,13 @@ import { PortfolioChart } from '@/components/dashboard/PortfolioChart';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { Comic } from '@/types/comic';
-import { Library, DollarSign, Star, TrendingUp, Loader2, LogIn, RefreshCw, BookOpen } from 'lucide-react';
+import { Library, DollarSign, Star, TrendingUp, Loader2, LogIn, RefreshCw, BookOpen, MoreHorizontal } from 'lucide-react';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 
 interface DashboardProps {
   onAddClick?: () => void;
@@ -109,21 +115,52 @@ export default function Dashboard({ onAddClick, onHuntingClick }: DashboardProps
           </p>
         </div>
       )}
-      {/* Hero Section */}
-      <section className="relative overflow-hidden rounded-2xl p-6 sm:p-8">
-        <div className="absolute inset-0 bg-hero-pattern opacity-10" />
-        <div className="absolute inset-0 bg-gradient-to-r from-background via-background/80 to-transparent" />
-        
-        <div className="relative z-10 flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
-          <div>
-            <h1 className="font-display text-4xl sm:text-5xl tracking-tight">
-              Welcome to <span className="gradient-text">KØDEX</span>
-            </h1>
-            <p className="text-muted-foreground mt-2 max-w-xl">
-              Your personal comic book collection manager. Track, organize, and discover the value of your collection.
-            </p>
-          </div>
-          <div className="flex flex-col sm:flex-row gap-2">
+      {/* Stats Grid - moved above hero on mobile */}
+      <section className="grid grid-cols-2 lg:grid-cols-4 gap-4 order-first sm:order-none">
+        <div className="animate-slide-up stagger-1">
+          <StatCard
+            title="Total Comics"
+            value={stats.totalComics}
+            subtitle="in your collection"
+            icon={Library}
+            accentColor="primary"
+          />
+        </div>
+        <div className="animate-slide-up stagger-2">
+          <StatCard
+            title="Collection Value"
+            value={formatCurrency(stats.totalValue)}
+            subtitle="estimated total"
+            icon={DollarSign}
+            accentColor="gold"
+            trend={trend && trend.percentChange !== 0 ? { value: Math.abs(Math.round(trend.percentChange)), isPositive: trend.percentChange >= 0 } : undefined}
+          />
+        </div>
+        <div className="animate-slide-up stagger-3">
+          <StatCard
+            title="Key Issues"
+            value={keyIssueCount}
+            subtitle="valuable comics"
+            icon={Star}
+            accentColor="blue"
+          />
+        </div>
+        <div className="animate-slide-up stagger-4">
+          <StatCard
+            title="Graded"
+            value={gradedCount}
+            subtitle="slabbed comics"
+            icon={TrendingUp}
+            accentColor="green"
+          />
+        </div>
+      </section>
+
+      {/* Actions Menu - compact dropdown on mobile, hidden on mobile */}
+      <section className="hidden sm:block relative overflow-hidden rounded-2xl p-4 sm:p-6">
+        <div className="flex items-center justify-between">
+          <p className="text-sm text-muted-foreground">Manage your collection</p>
+          <div className="flex gap-2">
             <Button
               variant="outline"
               size="sm"
@@ -166,47 +203,29 @@ export default function Dashboard({ onAddClick, onHuntingClick }: DashboardProps
           </div>
         </div>
       </section>
-      
-      {/* Stats Grid */}
-      <section className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="animate-slide-up stagger-1">
-          <StatCard
-            title="Total Comics"
-            value={stats.totalComics}
-            subtitle="in your collection"
-            icon={Library}
-            accentColor="primary"
-          />
-        </div>
-        <div className="animate-slide-up stagger-2">
-          <StatCard
-            title="Collection Value"
-            value={formatCurrency(stats.totalValue)}
-            subtitle="estimated total"
-            icon={DollarSign}
-            accentColor="gold"
-            trend={trend && trend.percentChange !== 0 ? { value: Math.abs(Math.round(trend.percentChange)), isPositive: trend.percentChange >= 0 } : undefined}
-          />
-        </div>
-        <div className="animate-slide-up stagger-3">
-          <StatCard
-            title="Key Issues"
-            value={keyIssueCount}
-            subtitle="valuable comics"
-            icon={Star}
-            accentColor="blue"
-          />
-        </div>
-        <div className="animate-slide-up stagger-4">
-          <StatCard
-            title="Graded"
-            value={gradedCount}
-            subtitle="slabbed comics"
-            icon={TrendingUp}
-            accentColor="green"
-          />
-        </div>
+
+      {/* Mobile Actions Dropdown */}
+      <section className="sm:hidden flex justify-end">
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="outline" size="sm" className="min-h-[44px]">
+              <MoreHorizontal className="w-4 h-4 mr-2" />
+              Actions
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-48">
+            <DropdownMenuItem onClick={refreshAllDetails} disabled={isRefreshingValues}>
+              <BookOpen className="w-4 h-4 mr-2" />
+              Refresh Details
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={refreshAllValues} disabled={isRefreshingValues}>
+              <RefreshCw className="w-4 h-4 mr-2" />
+              Refresh Values
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </section>
+      
       
       {/* Recent Additions */}
       <section className="space-y-4">

@@ -49,10 +49,26 @@ export function ShouldIGradeThis({ comic }: ShouldIGradeThisProps) {
     factors.push({ label: `First appearance comic`, impact: 'positive' });
   }
   
-  // Estimate graded values
-  const multiplier98 = comic.isKeyIssue ? 3 : 2.2;
-  const multiplier96 = comic.isKeyIssue ? 2.2 : 1.7;
-  const multiplier94 = comic.isKeyIssue ? 1.6 : 1.3;
+  // Signature premium for CGC SS books
+  const signaturePremium = comic.isSigned ? 
+    (comic.signatureType === 'cgc_ss' ? 2.5 : 
+     comic.signatureType === 'cbcs_verified' ? 2.0 : 
+     comic.signatureType === 'witnessed' ? 1.5 : 1.2) : 1;
+
+  // Add signature factor
+  if (comic.isSigned && signaturePremium > 1) {
+    score += 30;
+    factors.push({ label: `Signature adds ${Math.round((signaturePremium - 1) * 100)}% premium`, impact: 'positive' });
+  }
+
+  // Estimate graded values with signature premium
+  const baseMultiplier98 = comic.isKeyIssue ? 3 : 2.2;
+  const baseMultiplier96 = comic.isKeyIssue ? 2.2 : 1.7;
+  const baseMultiplier94 = comic.isKeyIssue ? 1.6 : 1.3;
+  
+  const multiplier98 = baseMultiplier98 * signaturePremium;
+  const multiplier96 = baseMultiplier96 * signaturePremium;
+  const multiplier94 = baseMultiplier94 * signaturePremium;
   
   const est98 = currentValue * multiplier98;
   const est96 = currentValue * multiplier96;

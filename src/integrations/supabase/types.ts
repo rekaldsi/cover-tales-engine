@@ -85,6 +85,7 @@ export type Database = {
           purchase_date: string | null
           purchase_price: number | null
           signature_type: string | null
+          signatures: Json | null
           signed_by: string | null
           signed_date: string | null
           title: string
@@ -132,6 +133,7 @@ export type Database = {
           purchase_date?: string | null
           purchase_price?: number | null
           signature_type?: string | null
+          signatures?: Json | null
           signed_by?: string | null
           signed_date?: string | null
           title: string
@@ -179,6 +181,7 @@ export type Database = {
           purchase_date?: string | null
           purchase_price?: number | null
           signature_type?: string | null
+          signatures?: Json | null
           signed_by?: string | null
           signed_date?: string | null
           title?: string
