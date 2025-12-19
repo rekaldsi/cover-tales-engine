@@ -126,6 +126,50 @@ export function useComicCollection() {
     fetchComics();
   }, [fetchComics]);
 
+  // Backfill values for comics that don't have a currentValue
+  const backfillValues = useCallback(async (comicsToUpdate: Comic[]) => {
+    const comicsWithoutValue = comicsToUpdate.filter(c => c.currentValue === undefined || c.currentValue === null);
+    
+    if (comicsWithoutValue.length === 0) return;
+    
+    console.log(`Backfilling values for ${comicsWithoutValue.length} comics...`);
+    
+    for (const comic of comicsWithoutValue) {
+      try {
+        const { data: valueData } = await supabase.functions.invoke('fetch-gocollect-value', {
+          body: {
+            title: comic.title,
+            issueNumber: comic.issueNumber,
+            publisher: comic.publisher,
+          }
+        });
+
+        if (valueData?.success && valueData.fmv) {
+          const rawValue = valueData.fmv.raw || valueData.fmv['8.0'] || valueData.fmv['9.0'];
+          if (rawValue) {
+            // Update in database
+            await supabase.from('comics').update({ current_value: rawValue }).eq('id', comic.id);
+            // Update local state
+            setComics(prev => prev.map(c => c.id === comic.id ? { ...c, currentValue: rawValue } : c));
+            console.log(`Backfilled value for ${comic.title} #${comic.issueNumber}: $${rawValue}`);
+          }
+        }
+      } catch (err) {
+        console.log(`Failed to backfill value for ${comic.title}:`, err);
+      }
+      
+      // Small delay to avoid rate limiting
+      await new Promise(resolve => setTimeout(resolve, 500));
+    }
+  }, []);
+
+  // Trigger backfill once comics are loaded
+  useEffect(() => {
+    if (!isLoading && comics.length > 0 && user) {
+      backfillValues(comics);
+    }
+  }, [isLoading, comics.length, user]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const addComic = useCallback(async (comic: Omit<Comic, 'id' | 'dateAdded'>) => {
     if (!user) {
       // User is not authenticated - show error and don't save
@@ -150,16 +194,20 @@ export function useComicCollection() {
           }
         });
 
-        if (valueData?.success) {
-          // Use raw value estimate (VG/FN grade ~4.0-6.0)
-          const rawValue = valueData.fmv?.['4.0'] || valueData.fmv?.['2.0'] || valueData.fmv?.['6.0'];
+        if (valueData?.success && valueData.fmv) {
+          // Use raw value for ungraded, or specific grade if available
+          const rawValue = valueData.fmv.raw || valueData.fmv['8.0'] || valueData.fmv['9.0'];
           if (rawValue) {
             comicWithValue.currentValue = rawValue;
-            console.log('Auto-fetched value:', rawValue);
+            console.log('Auto-fetched value for', comic.title, ':', rawValue, 'from FMV data:', valueData.fmv);
+          } else {
+            console.log('No raw value found in FMV data:', valueData.fmv);
           }
+        } else {
+          console.log('Value fetch response:', valueData);
         }
       } catch (err) {
-        console.log('Value lookup failed, continuing without value');
+        console.log('Value lookup failed:', err);
       }
     }
 
