@@ -16,6 +16,7 @@ export function useComicEnrichment() {
   const [enrichmentError, setEnrichmentError] = useState<string | null>(null);
 
   const needsEnrichment = (comic: Comic): boolean => {
+    // Check for missing cover image OR missing creator data
     return !comic.coverImage || !comic.writer || !comic.artist || !comic.coverDate;
   };
 
@@ -32,6 +33,8 @@ export function useComicEnrichment() {
     setEnrichmentError(null);
 
     try {
+      console.log(`[Enrichment] Fetching data for: ${comic.title} #${comic.issueNumber}`);
+      
       const { data, error } = await supabase.functions.invoke('fetch-comic-cover', {
         body: {
           title: comic.title,
@@ -41,17 +44,20 @@ export function useComicEnrichment() {
       });
 
       if (error) {
-        console.error('Enrichment error:', error);
+        console.error('[Enrichment] Error:', error);
         setEnrichmentError('Failed to fetch comic details');
         return comic;
       }
 
-      if (!data || data.error) {
-        console.log('No enrichment data found:', data?.error);
+      console.log('[Enrichment] Response:', data);
+
+      if (!data || data.error || !data.success) {
+        console.log('[Enrichment] No data found:', data?.error);
         return comic;
       }
 
       // Build updates only for missing fields
+      // Note: API returns coverImageUrl, we map to coverImage
       const updates: Partial<Comic> = {};
       
       if (!comic.coverImage && data.coverImageUrl) {
@@ -70,15 +76,18 @@ export function useComicEnrichment() {
         updates.coverDate = data.coverDate;
       }
 
+      console.log('[Enrichment] Updates to apply:', updates);
+
       // Only update if we have new data
       if (Object.keys(updates).length > 0) {
         await onUpdate(comic.id, updates);
+        console.log('[Enrichment] Updated comic:', comic.id);
         return { ...comic, ...updates };
       }
 
       return comic;
     } catch (err) {
-      console.error('Enrichment failed:', err);
+      console.error('[Enrichment] Failed:', err);
       setEnrichmentError('Failed to enrich comic data');
       return comic;
     } finally {
