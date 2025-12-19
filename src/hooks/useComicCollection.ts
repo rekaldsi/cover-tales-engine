@@ -138,10 +138,35 @@ export function useComicCollection() {
       throw new Error('Authentication required to save comics');
     }
 
+    // Auto-fetch value if not already set
+    let comicWithValue = { ...comic };
+    if (!comic.currentValue && comic.title) {
+      try {
+        const { data: valueData } = await supabase.functions.invoke('fetch-gocollect-value', {
+          body: {
+            title: comic.title,
+            issueNumber: comic.issueNumber,
+            publisher: comic.publisher,
+          }
+        });
+
+        if (valueData?.success) {
+          // Use raw value estimate (VG/FN grade ~4.0-6.0)
+          const rawValue = valueData.fmv?.['4.0'] || valueData.fmv?.['2.0'] || valueData.fmv?.['6.0'];
+          if (rawValue) {
+            comicWithValue.currentValue = rawValue;
+            console.log('Auto-fetched value:', rawValue);
+          }
+        }
+      } catch (err) {
+        console.log('Value lookup failed, continuing without value');
+      }
+    }
+
     // Add to Supabase
     const { data, error } = await supabase
       .from('comics')
-      .insert(mapComicToDb(comic, user.id))
+      .insert(mapComicToDb(comicWithValue, user.id))
       .select()
       .single();
 
@@ -157,6 +182,53 @@ export function useComicCollection() {
 
     const newComic = mapDbToComic(data);
     setComics(prev => [newComic, ...prev]);
+    
+    // Background enrichment - fetch creator details if missing
+    // Done asynchronously after returning to avoid blocking
+    if (!newComic.writer && !newComic.artist) {
+      setTimeout(async () => {
+        try {
+          const { data: enrichData } = await supabase.functions.invoke('fetch-comic-cover', {
+            body: {
+              title: newComic.title,
+              issueNumber: newComic.issueNumber,
+              publisher: newComic.publisher,
+            }
+          });
+          
+          if (enrichData?.success) {
+            const dbUpdates: Record<string, any> = {};
+            if (enrichData.writer) dbUpdates.writer = enrichData.writer;
+            if (enrichData.artist) dbUpdates.artist = enrichData.artist;
+            if (enrichData.coverArtist) dbUpdates.cover_artist = enrichData.coverArtist;
+            if (enrichData.coverDate) dbUpdates.cover_date = enrichData.coverDate;
+            if (enrichData.isKeyIssue !== undefined) dbUpdates.is_key_issue = enrichData.isKeyIssue;
+            if (enrichData.keyIssueReason) dbUpdates.key_issue_reason = enrichData.keyIssueReason;
+            
+            if (Object.keys(dbUpdates).length > 0) {
+              await supabase.from('comics').update(dbUpdates).eq('id', newComic.id);
+              // Update local state
+              setComics(prev => prev.map(c => 
+                c.id === newComic.id 
+                  ? { 
+                      ...c, 
+                      writer: enrichData.writer || c.writer,
+                      artist: enrichData.artist || c.artist,
+                      coverArtist: enrichData.coverArtist || c.coverArtist,
+                      coverDate: enrichData.coverDate || c.coverDate,
+                      isKeyIssue: enrichData.isKeyIssue ?? c.isKeyIssue,
+                      keyIssueReason: enrichData.keyIssueReason || c.keyIssueReason,
+                    } 
+                  : c
+              ));
+            }
+          }
+        } catch (err) {
+          console.log('Background enrichment failed:', err);
+        }
+      }, 100);
+    }
+    
     return newComic;
   }, [user, toast]);
 

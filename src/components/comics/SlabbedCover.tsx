@@ -31,13 +31,13 @@ export function SlabbedCover({
   const isGraded = gradeStatus !== 'raw';
   const colors = SLAB_COLORS[gradeStatus];
 
-  // Cover image component
+  // Cover image component - use object-contain to prevent cropping
   const CoverImage = () => (
     coverUrl ? (
       <img
         src={coverUrl}
         alt={`${title} #${issueNumber}`}
-        className="w-full h-full object-cover"
+        className="w-full h-full object-contain bg-muted/30"
         loading="lazy"
       />
     ) : (

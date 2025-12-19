@@ -270,8 +270,8 @@ export function HuntingMode({ open, onOpenChange, onAddToCollection, ownedComics
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto p-0">
-        <DialogHeader className="p-4 pb-0">
+      <DialogContent fullScreenMobile className="max-w-lg max-h-[90vh] overflow-hidden p-0 flex flex-col">
+        <DialogHeader className="p-4 pb-0 shrink-0 pt-safe">
           <DialogTitle className="flex items-center gap-2">
             <Sparkles className="w-5 h-5 text-primary" />
             Hunting Mode
@@ -281,7 +281,7 @@ export function HuntingMode({ open, onOpenChange, onAddToCollection, ownedComics
           </p>
         </DialogHeader>
 
-        <div className="p-4">
+        <div className="p-4 flex-1 overflow-y-auto pb-safe">
           {/* Auth Warning */}
           {!user && (
             <div className="mb-4 p-3 bg-yellow-500/10 border border-yellow-500/30 rounded-lg flex items-center gap-2 text-sm text-yellow-400">
