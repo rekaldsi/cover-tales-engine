@@ -145,7 +145,7 @@ export default function Dashboard({ onAddClick, onHuntingClick }: DashboardProps
             subtitle="estimated total"
             icon={DollarSign}
             accentColor="gold"
-            trend={{ value: 12, isPositive: true }}
+            trend={trend && trend.percentChange !== 0 ? { value: Math.abs(Math.round(trend.percentChange)), isPositive: trend.percentChange >= 0 } : undefined}
           />
         </div>
         <div className="animate-slide-up stagger-3">
