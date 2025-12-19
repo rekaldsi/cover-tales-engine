@@ -52,10 +52,13 @@ export function GroupedComicCard({ group, onClick }: GroupedComicCardProps) {
           gradeStatus={mainComic.gradeStatus}
           grade={mainComic.grade}
           isKeyIssue={mainComic.isKeyIssue}
+          isSigned={mainComic.isSigned}
+          labelType={mainComic.labelType}
+          signatureType={mainComic.signatureType}
         />
         
-        {/* Signed Badge */}
-        {group.hasSigned && (
+        {/* Signed Badge - only show for raw signed books (graded SS uses yellow slab) */}
+        {group.hasSigned && mainComic.gradeStatus === 'raw' && (
           <div className="absolute top-3 right-3 bg-comic-green text-white text-[10px] font-bold px-1.5 py-0.5 rounded flex items-center gap-1 shadow-md">
             <PenTool className="h-2.5 w-2.5" />
             SIGNED

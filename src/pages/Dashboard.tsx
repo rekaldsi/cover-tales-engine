@@ -38,10 +38,13 @@ export default function Dashboard({ onAddClick, onHuntingClick }: DashboardProps
   const gradedCount = comics.filter(c => c.gradeStatus !== 'raw').length;
   
   const formatCurrency = (value: number) => {
-    if (value >= 1000) {
-      return `$${(value / 1000).toFixed(1)}k`;
+    // Round to 2 decimal places first to fix floating point issues
+    const roundedValue = Math.round(value * 100) / 100;
+    
+    if (roundedValue >= 1000) {
+      return `$${(roundedValue / 1000).toFixed(1)}k`;
     }
-    return `$${value}`;
+    return `$${roundedValue.toFixed(2)}`;
   };
   
   // Show empty state if no comics

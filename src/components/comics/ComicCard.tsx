@@ -31,10 +31,13 @@ export function ComicCard({ comic, onClick }: ComicCardProps) {
           gradeStatus={comic.gradeStatus}
           grade={comic.grade}
           isKeyIssue={comic.isKeyIssue}
+          isSigned={comic.isSigned}
+          labelType={comic.labelType}
+          signatureType={comic.signatureType}
         />
         
-        {/* Signed Badge */}
-        {comic.isSigned && (
+        {/* Signed Badge - only show for raw signed books (graded SS uses yellow slab) */}
+        {comic.isSigned && comic.gradeStatus === 'raw' && (
           <div className="absolute top-3 right-3 bg-comic-green text-white text-[10px] font-bold px-1.5 py-0.5 rounded flex items-center gap-1 shadow-md">
             <PenTool className="h-2.5 w-2.5" />
             SIGNED
