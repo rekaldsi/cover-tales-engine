@@ -45,9 +45,39 @@ export function CoverScanner({ onRecognize, onError }: CoverScannerProps) {
   const [capturedImage, setCapturedImage] = useState<string | null>(null);
   const [stabilityProgress, setStabilityProgress] = useState(0);
   const { toast } = useToast();
+  const audioContextRef = useRef<AudioContext | null>(null);
 
   const STABILITY_MS = 800; // Time to hold steady before auto-scan
   const CHANGE_THRESHOLD = 0.15; // Similarity threshold
+
+  // Play a success beep using Web Audio API
+  const playSuccessBeep = useCallback(() => {
+    try {
+      if (!audioContextRef.current) {
+        audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
+      }
+      const ctx = audioContextRef.current;
+      
+      // Create oscillator for beep
+      const oscillator = ctx.createOscillator();
+      const gainNode = ctx.createGain();
+      
+      oscillator.connect(gainNode);
+      gainNode.connect(ctx.destination);
+      
+      // Pleasant success sound: two-tone beep
+      oscillator.frequency.setValueAtTime(880, ctx.currentTime); // A5
+      oscillator.frequency.setValueAtTime(1108.73, ctx.currentTime + 0.1); // C#6
+      
+      gainNode.gain.setValueAtTime(0.3, ctx.currentTime);
+      gainNode.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.2);
+      
+      oscillator.start(ctx.currentTime);
+      oscillator.stop(ctx.currentTime + 0.2);
+    } catch (err) {
+      console.log('Audio feedback not available:', err);
+    }
+  }, []);
 
   // Generate a simple hash from canvas data for comparison
   const generateFrameHash = useCallback((imageData: ImageData): string => {
@@ -130,7 +160,8 @@ export function CoverScanner({ onRecognize, onError }: CoverScannerProps) {
             if (error) throw error;
 
             if (data.success && data.comic) {
-              // Haptic feedback
+              // Audio and haptic feedback
+              playSuccessBeep();
               if (navigator.vibrate) navigator.vibrate([100, 50, 100]);
               
               toast({
