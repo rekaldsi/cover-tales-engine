@@ -141,7 +141,7 @@ export function useComicCollection() {
         const { data: valueData } = await supabase.functions.invoke('fetch-gocollect-value', {
           body: {
             title: comic.title,
-            issueNumber: comic.issueNumber,
+            issue_number: comic.issueNumber,
             publisher: comic.publisher,
           }
         });
@@ -182,7 +182,7 @@ export function useComicCollection() {
         const { data: valueData } = await supabase.functions.invoke('fetch-gocollect-value', {
           body: {
             title: comic.title,
-            issueNumber: comic.issueNumber,
+            issue_number: comic.issueNumber,
             publisher: comic.publisher,
           }
         });
@@ -239,7 +239,7 @@ export function useComicCollection() {
         const { data: valueData } = await supabase.functions.invoke('fetch-gocollect-value', {
           body: {
             title: comic.title,
-            issueNumber: comic.issueNumber,
+            issue_number: comic.issueNumber,
             publisher: comic.publisher,
           }
         });
