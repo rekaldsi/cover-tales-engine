@@ -54,12 +54,15 @@ export type Database = {
           cert_number: string | null
           characters: string[] | null
           comicvine_id: string | null
+          condition_confidence: string | null
+          condition_notes: string | null
           cover_artist: string | null
           cover_date: string | null
           cover_image_url: string | null
           created_at: string
           current_value: number | null
           era: string | null
+          estimated_raw_grade: string | null
           first_appearance_of: string | null
           grade: number | null
           grade_status: string | null
@@ -87,6 +90,7 @@ export type Database = {
           updated_at: string
           user_id: string
           variant_type: string | null
+          visible_defects: string[] | null
           volume: string | null
           writer: string | null
         }
@@ -96,12 +100,15 @@ export type Database = {
           cert_number?: string | null
           characters?: string[] | null
           comicvine_id?: string | null
+          condition_confidence?: string | null
+          condition_notes?: string | null
           cover_artist?: string | null
           cover_date?: string | null
           cover_image_url?: string | null
           created_at?: string
           current_value?: number | null
           era?: string | null
+          estimated_raw_grade?: string | null
           first_appearance_of?: string | null
           grade?: number | null
           grade_status?: string | null
@@ -129,6 +136,7 @@ export type Database = {
           updated_at?: string
           user_id: string
           variant_type?: string | null
+          visible_defects?: string[] | null
           volume?: string | null
           writer?: string | null
         }
@@ -138,12 +146,15 @@ export type Database = {
           cert_number?: string | null
           characters?: string[] | null
           comicvine_id?: string | null
+          condition_confidence?: string | null
+          condition_notes?: string | null
           cover_artist?: string | null
           cover_date?: string | null
           cover_image_url?: string | null
           created_at?: string
           current_value?: number | null
           era?: string | null
+          estimated_raw_grade?: string | null
           first_appearance_of?: string | null
           grade?: number | null
           grade_status?: string | null
@@ -171,6 +182,7 @@ export type Database = {
           updated_at?: string
           user_id?: string
           variant_type?: string | null
+          visible_defects?: string[] | null
           volume?: string | null
           writer?: string | null
         }

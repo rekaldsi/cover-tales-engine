@@ -22,6 +22,11 @@ interface RecognizedComic {
   confidence: 'high' | 'medium' | 'low';
   isVariant?: boolean;
   userCapturedImage?: string;
+  // AI condition analysis fields
+  estimatedRawGrade?: string;
+  conditionConfidence?: 'high' | 'medium' | 'low';
+  conditionNotes?: string;
+  visibleDefects?: string[];
 }
 
 interface CoverScannerProps {

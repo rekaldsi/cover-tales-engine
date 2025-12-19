@@ -128,7 +128,7 @@ serve(async (req) => {
         messages: [
           {
             role: 'system',
-            content: `You are an expert comic book identifier with deep knowledge of comics, grading, and collectibles. Analyze comic book covers and return structured JSON data.
+            content: `You are an expert comic book identifier AND condition grader with deep knowledge of comics, professional grading standards (CGC, CBCS, PGX), and collectibles. Analyze comic book covers and return structured JSON data.
 
 IMPORTANT: Return ONLY valid JSON, no markdown or explanation.
 
@@ -156,20 +156,47 @@ CRITICAL INSTRUCTIONS FOR GRADED SLABS:
 - The certification number is usually 10 digits on CGC labels
 - Look for "Signature Series" or "SS" which indicates authenticated signatures
 
+CONDITION ANALYSIS FOR RAW COMICS (not in slabs):
+If this is a RAW comic (not graded/slabbed), carefully analyze visible condition defects:
+- SPINE: Look for stress marks, spine ticks, spine roll, bindery tears
+- CORNERS: Corner wear, blunted corners, corner creases
+- EDGES: Edge wear, chipping, small tears
+- COVER: Creases, folds, scratches, scuffs, staining, foxing
+- COLORS: Fading, sun damage, yellowing
+- STRUCTURAL: Missing pieces, large tears, water damage, mold
+
+Based on visible defects, estimate a raw grade using CGC standards:
+- 9.8: Near perfect, barely any defects
+- 9.6: Minor defects, very minor spine stress
+- 9.4: Light defects, minor spine wear
+- 9.2: Light wear, some spine stress
+- 9.0: Minor wear on cover and spine
+- 8.0-8.5: Moderate wear, minor creases
+- 7.0-7.5: Visible wear, some creasing
+- 6.0-6.5: Above average wear, creases
+- 5.0-5.5: Average wear (VG/FN)
+- 4.0 and below: Heavy wear, major defects
+
 For comic covers, identify:
 - title: The series title (e.g., "Amazing Spider-Man", "Batman", "Uncanny X-Men")
 - issueNumber: The issue number as a string (look for "#" followed by number)
 - publisher: The publisher (MUST identify: Marvel Comics, DC Comics, Image Comics, Dark Horse, IDW, Valiant, etc.)
-- variant: Variant type if applicable (e.g., "Cover A", "Cover B", "1:25 Variant", "Newsstand", "Direct Edition", "Virgin", "Foil")
-- printNumber: Print number (1 for first print, 2 for second, etc.) - look for "2nd Printing" text
+- variant: Variant type if applicable
+- printNumber: Print number (1 for first print, 2 for second, etc.)
 - isGraded: true if in a grading slab (CGC, CBCS, PGX plastic holder)
 - gradingCompany: If graded, which company (cgc, cbcs, pgx) - use lowercase
-- grade: If graded, the numeric grade as shown on label (e.g., "9.8", "9.6")
+- grade: If graded, the numeric grade as shown on label
 - certNumber: If graded, the full certification number from the label
-- coverDate: Cover date in YYYY-MM format if visible on cover
-- isKeyIssue: Whether this is likely a key issue (first appearances, deaths, origins, etc.)
-- keyIssueReason: If key issue, why (e.g., "1st appearance of Venom", "Death of Gwen Stacy")
+- coverDate: Cover date in YYYY-MM format if visible
+- isKeyIssue: Whether this is likely a key issue
+- keyIssueReason: If key issue, why
 - confidence: Your confidence level (high, medium, low)
+
+CONDITION ANALYSIS FIELDS (for RAW comics only):
+- estimatedRawGrade: Your estimated numeric grade (e.g., "8.0", "7.5", "5.0") - ONLY if NOT graded
+- conditionConfidence: How confident you are in the grade estimate (high, medium, low)
+- conditionNotes: Brief description of the overall condition
+- visibleDefects: Array of specific defects you can see (e.g., ["spine stress", "corner wear", "light crease on cover"])
 
 JSON schema:
 {
@@ -185,7 +212,11 @@ JSON schema:
   "coverDate": string | null,
   "isKeyIssue": boolean,
   "keyIssueReason": string | null,
-  "confidence": "high" | "medium" | "low"
+  "confidence": "high" | "medium" | "low",
+  "estimatedRawGrade": string | null,
+  "conditionConfidence": "high" | "medium" | "low" | null,
+  "conditionNotes": string | null,
+  "visibleDefects": string[] | null
 }`
           },
           {
@@ -193,7 +224,7 @@ JSON schema:
             content: [
               {
                 type: 'text',
-                text: 'Identify this comic book cover. Pay special attention to the PUBLISHER - look for logos, text, or infer from the characters. Return ONLY valid JSON.'
+                text: 'Identify this comic book cover AND analyze its condition. Pay special attention to the PUBLISHER - look for logos, text, or infer from the characters. If this is a RAW comic (not in a grading slab), carefully examine visible defects and estimate a grade. Return ONLY valid JSON.'
               },
               {
                 type: 'image_url',
