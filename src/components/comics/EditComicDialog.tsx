@@ -6,7 +6,9 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Comic, PUBLISHERS, GradeStatus, GRADE_OPTIONS } from '@/types/comic';
+import { Comic, PUBLISHERS, GradeStatus, GRADE_OPTIONS, SignatureType } from '@/types/comic';
+import { DateInput } from '@/components/ui/DateInput';
+import { format } from 'date-fns';
 
 interface EditComicDialogProps {
   comic: Comic;
@@ -14,6 +16,13 @@ interface EditComicDialogProps {
   onOpenChange: (open: boolean) => void;
   onSave: (updates: Partial<Comic>) => Promise<void>;
 }
+
+const SIGNATURE_TYPES: { value: SignatureType; label: string }[] = [
+  { value: 'witnessed', label: 'Witnessed' },
+  { value: 'cgc_ss', label: 'CGC Signature Series' },
+  { value: 'cbcs_verified', label: 'CBCS Verified' },
+  { value: 'unverified', label: 'Unverified' },
+];
 
 export function EditComicDialog({ comic, open, onOpenChange, onSave }: EditComicDialogProps) {
   const [isLoading, setIsLoading] = useState(false);
@@ -35,6 +44,11 @@ export function EditComicDialog({ comic, open, onOpenChange, onSave }: EditComic
     certNumber: '',
     purchasePrice: '',
     currentValue: '',
+    // Signature fields
+    isSigned: false,
+    signedBy: '',
+    signedDate: '',
+    signatureType: 'witnessed' as SignatureType,
   });
 
   // Sync form data when comic changes
@@ -58,9 +72,21 @@ export function EditComicDialog({ comic, open, onOpenChange, onSave }: EditComic
         certNumber: comic.certNumber || '',
         purchasePrice: comic.purchasePrice?.toString() || '',
         currentValue: comic.currentValue?.toString() || '',
+        // Signature fields
+        isSigned: comic.isSigned || false,
+        signedBy: comic.signedBy || '',
+        signedDate: comic.signedDate || '',
+        signatureType: comic.signatureType || 'witnessed',
       });
     }
   }, [comic, open]);
+
+  // Suggest creators from the comic
+  const suggestedSigners = [
+    formData.writer,
+    formData.artist,
+    formData.coverArtist,
+  ].filter((s): s is string => !!s && s.trim() !== '');
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -85,6 +111,11 @@ export function EditComicDialog({ comic, open, onOpenChange, onSave }: EditComic
         certNumber: formData.gradeStatus !== 'raw' ? formData.certNumber : undefined,
         purchasePrice: formData.purchasePrice ? parseFloat(formData.purchasePrice) : undefined,
         currentValue: formData.currentValue ? parseFloat(formData.currentValue) : undefined,
+        // Signature fields
+        isSigned: formData.isSigned,
+        signedBy: formData.isSigned ? formData.signedBy : undefined,
+        signedDate: formData.isSigned ? formData.signedDate : undefined,
+        signatureType: formData.isSigned ? formData.signatureType : undefined,
       };
 
       await onSave(updates);
@@ -304,6 +335,73 @@ export function EditComicDialog({ comic, open, onOpenChange, onSave }: EditComic
               />
             </div>
           )}
+
+          {/* Signature Section */}
+          <div className="space-y-3 p-3 bg-secondary/50 rounded-lg">
+            <div className="flex items-center gap-3">
+              <Switch
+                id="isSigned"
+                checked={formData.isSigned}
+                onCheckedChange={(checked) => setFormData(prev => ({ ...prev, isSigned: checked }))}
+              />
+              <Label htmlFor="isSigned" className="cursor-pointer flex-1 font-medium">
+                Signed
+              </Label>
+            </div>
+
+            {formData.isSigned && (
+              <div className="space-y-3 pt-2">
+                <div>
+                  <Label htmlFor="signedBy" className="text-xs">Signed By</Label>
+                  <Input
+                    id="signedBy"
+                    value={formData.signedBy}
+                    onChange={(e) => setFormData(prev => ({ ...prev, signedBy: e.target.value }))}
+                    placeholder="Enter signer's name"
+                  />
+                  {suggestedSigners.length > 0 && (
+                    <div className="flex flex-wrap gap-1 mt-1">
+                      {suggestedSigners.map((signer) => (
+                        <Button
+                          key={signer}
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setFormData(prev => ({ ...prev, signedBy: signer }))}
+                          className="text-xs h-6 px-2"
+                        >
+                          {signer}
+                        </Button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <DateInput
+                  label="Signature Date"
+                  value={formData.signedDate}
+                  onChange={(value) => setFormData(prev => ({ ...prev, signedDate: value }))}
+                />
+
+                <div>
+                  <Label className="text-xs">Signature Type</Label>
+                  <Select 
+                    value={formData.signatureType} 
+                    onValueChange={(v) => setFormData(prev => ({ ...prev, signatureType: v as SignatureType }))}
+                  >
+                    <SelectTrigger className="bg-background">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="bg-popover">
+                      {SIGNATURE_TYPES.map((type) => (
+                        <SelectItem key={type.value} value={type.value}>{type.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            )}
+          </div>
 
           {/* Notes */}
           <div>

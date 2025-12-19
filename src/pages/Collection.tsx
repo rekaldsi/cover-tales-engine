@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react';
 import { useComicCollection } from '@/hooks/useComicCollection';
 import { ComicCard } from '@/components/comics/ComicCard';
-import { ComicDetailSheet } from '@/components/comics/ComicDetailSheet';
+import { ComicDetailModal } from '@/components/comics/ComicDetailModal';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -217,8 +217,8 @@ export default function Collection() {
         </div>
       )}
       
-      {/* Detail Sheet */}
-      <ComicDetailSheet
+      {/* Detail Modal */}
+      <ComicDetailModal
         comic={selectedComic}
         open={!!selectedComic}
         onOpenChange={(open) => !open && setSelectedComic(null)}
