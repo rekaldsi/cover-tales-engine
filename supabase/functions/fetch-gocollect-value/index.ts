@@ -22,14 +22,14 @@ interface FMVData {
   current?: number;
 }
 
-// Fetch with retry logic and timeout
+// Fetch with retry logic and timeout - returns null on failure instead of throwing
 async function fetchWithRetry(
   url: string, 
   options: RequestInit, 
-  maxRetries = 3,
-  timeoutMs = 30000
-): Promise<Response> {
-  let lastError: Error | null = null;
+  maxRetries = 2,
+  timeoutMs = 15000
+): Promise<{ response: Response | null; error: string | null }> {
+  let lastError: string = 'Unknown error';
   
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
@@ -45,32 +45,38 @@ async function fetchWithRetry(
       
       // Don't retry on client errors (4xx), only server errors (5xx)
       if (response.ok || (response.status >= 400 && response.status < 500)) {
-        return response;
+        return { response, error: null };
+      }
+      
+      // Cloudflare timeout errors - don't retry, fail fast
+      if (response.status === 522 || response.status === 524) {
+        console.log(`GoCollect servers unreachable (${response.status})`);
+        return { response: null, error: 'gocollect_unavailable' };
       }
       
       // Server error - will retry
       console.log(`Attempt ${attempt}/${maxRetries} failed with status ${response.status}`);
-      lastError = new Error(`HTTP ${response.status}`);
+      lastError = `Server error ${response.status}`;
       
     } catch (error) {
       if (error instanceof Error && error.name === 'AbortError') {
         console.log(`Attempt ${attempt}/${maxRetries} timed out after ${timeoutMs}ms`);
-        lastError = new Error('Request timed out');
+        lastError = 'Request timed out';
       } else {
         console.log(`Attempt ${attempt}/${maxRetries} failed:`, error);
-        lastError = error instanceof Error ? error : new Error(String(error));
+        lastError = error instanceof Error ? error.message : String(error);
       }
     }
     
-    // Exponential backoff: 2s, 4s, 8s
+    // Quick backoff: 1s, 2s
     if (attempt < maxRetries) {
-      const delay = Math.pow(2, attempt) * 1000;
+      const delay = attempt * 1000;
       console.log(`Waiting ${delay}ms before retry...`);
       await new Promise(resolve => setTimeout(resolve, delay));
     }
   }
   
-  throw lastError || new Error('All retry attempts failed');
+  return { response: null, error: lastError };
 }
 
 Deno.serve(async (req) => {
@@ -104,8 +110,8 @@ Deno.serve(async (req) => {
       searchParams.append('publisher', publisher);
     }
 
-    // Search for the comic in GoCollect - Fixed URL: removed extra /api/ segment
-    const searchResponse = await fetchWithRetry(
+    // Search for the comic in GoCollect
+    const searchResult = await fetchWithRetry(
       `https://api.gocollect.com/v1/search?${searchParams.toString()}`,
       {
         headers: {
@@ -115,19 +121,29 @@ Deno.serve(async (req) => {
       }
     );
 
+    // Handle GoCollect unavailability gracefully
+    if (searchResult.error || !searchResult.response) {
+      console.log('GoCollect unavailable, signaling fallback needed');
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: 'gocollect_unavailable',
+          message: 'GoCollect servers are temporarily unavailable',
+        }),
+        {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 503, // Service Unavailable - clearer for client to handle
+        }
+      );
+    }
+
+    const searchResponse = searchResult.response;
+
     if (!searchResponse.ok) {
       console.error(`GoCollect search error: ${searchResponse.status}`);
       
       if (searchResponse.status === 401 || searchResponse.status === 403) {
         throw new Error('GoCollect API authentication failed. Please check your API key.');
-      }
-      
-      if (searchResponse.status === 522 || searchResponse.status === 524) {
-        throw new Error('GoCollect servers are temporarily unavailable. Please try again in a few minutes.');
-      }
-      
-      if (searchResponse.status >= 500) {
-        throw new Error('GoCollect is experiencing server issues. Please try again later.');
       }
       
       throw new Error('Failed to search GoCollect');
@@ -139,7 +155,8 @@ Deno.serve(async (req) => {
       return new Response(
         JSON.stringify({
           success: false,
-          error: 'Comic not found in GoCollect database',
+          error: 'not_found',
+          message: 'Comic not found in GoCollect database',
         }),
         {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -151,8 +168,8 @@ Deno.serve(async (req) => {
     // Get the first matching result
     const comicId = searchData.data[0].id;
 
-    // Fetch detailed pricing/insights for this comic - Fixed URL: removed extra /api/ segment
-    const insightsResponse = await fetchWithRetry(
+    // Fetch detailed pricing/insights for this comic
+    const insightsResult = await fetchWithRetry(
       `https://api.gocollect.com/v1/insights/${comicId}`,
       {
         headers: {
@@ -161,6 +178,22 @@ Deno.serve(async (req) => {
         },
       }
     );
+
+    if (insightsResult.error || !insightsResult.response) {
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: 'gocollect_unavailable',
+          message: 'GoCollect servers are temporarily unavailable',
+        }),
+        {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 503,
+        }
+      );
+    }
+
+    const insightsResponse = insightsResult.response;
 
     if (!insightsResponse.ok) {
       console.error(`GoCollect insights error: ${insightsResponse.status}`);
@@ -212,7 +245,7 @@ Deno.serve(async (req) => {
         },
         fmv: fmvData,
         trend: trend,
-        recent_sales: recentSales.slice(0, 5), // Limit to 5 recent sales
+        recent_sales: recentSales.slice(0, 5),
       }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -222,19 +255,11 @@ Deno.serve(async (req) => {
   } catch (error) {
     console.error('GoCollect value fetch error:', error);
     
-    let errorMessage = 'Failed to fetch value from GoCollect';
-    if (error instanceof Error) {
-      if (error.message === 'Request timed out') {
-        errorMessage = 'GoCollect servers are not responding. Please try again later.';
-      } else {
-        errorMessage = error.message;
-      }
-    }
-    
     return new Response(
       JSON.stringify({
         success: false,
-        error: errorMessage,
+        error: 'internal_error',
+        message: error instanceof Error ? error.message : 'Failed to fetch value from GoCollect',
       }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
