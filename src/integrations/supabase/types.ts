@@ -53,6 +53,7 @@ export type Database = {
           barcode: string | null
           cert_number: string | null
           characters: string[] | null
+          colorist: string | null
           comicvine_id: string | null
           condition_confidence: string | null
           condition_notes: string | null
@@ -60,8 +61,10 @@ export type Database = {
           cover_artist: string | null
           cover_date: string | null
           cover_image_url: string | null
+          cover_price: string | null
           created_at: string
           current_value: number | null
+          editor: string | null
           era: string | null
           estimated_raw_grade: string | null
           first_appearance_of: string | null
@@ -70,12 +73,14 @@ export type Database = {
           graded_date: string | null
           grader_notes: string | null
           id: string
+          inker: string | null
           inner_well_notes: string | null
           is_key_issue: boolean | null
           is_signed: boolean | null
           issue_number: string | null
           key_issue_reason: string | null
           label_type: string | null
+          letterer: string | null
           location: string | null
           media_tie_in: string | null
           notes: string | null
@@ -88,7 +93,10 @@ export type Database = {
           signatures: Json | null
           signed_by: string | null
           signed_date: string | null
+          story_arc: string | null
+          synopsis: string | null
           title: string
+          upc_code: string | null
           updated_at: string
           user_id: string
           variant_type: string | null
@@ -101,6 +109,7 @@ export type Database = {
           barcode?: string | null
           cert_number?: string | null
           characters?: string[] | null
+          colorist?: string | null
           comicvine_id?: string | null
           condition_confidence?: string | null
           condition_notes?: string | null
@@ -108,8 +117,10 @@ export type Database = {
           cover_artist?: string | null
           cover_date?: string | null
           cover_image_url?: string | null
+          cover_price?: string | null
           created_at?: string
           current_value?: number | null
+          editor?: string | null
           era?: string | null
           estimated_raw_grade?: string | null
           first_appearance_of?: string | null
@@ -118,12 +129,14 @@ export type Database = {
           graded_date?: string | null
           grader_notes?: string | null
           id?: string
+          inker?: string | null
           inner_well_notes?: string | null
           is_key_issue?: boolean | null
           is_signed?: boolean | null
           issue_number?: string | null
           key_issue_reason?: string | null
           label_type?: string | null
+          letterer?: string | null
           location?: string | null
           media_tie_in?: string | null
           notes?: string | null
@@ -136,7 +149,10 @@ export type Database = {
           signatures?: Json | null
           signed_by?: string | null
           signed_date?: string | null
+          story_arc?: string | null
+          synopsis?: string | null
           title: string
+          upc_code?: string | null
           updated_at?: string
           user_id: string
           variant_type?: string | null
@@ -149,6 +165,7 @@ export type Database = {
           barcode?: string | null
           cert_number?: string | null
           characters?: string[] | null
+          colorist?: string | null
           comicvine_id?: string | null
           condition_confidence?: string | null
           condition_notes?: string | null
@@ -156,8 +173,10 @@ export type Database = {
           cover_artist?: string | null
           cover_date?: string | null
           cover_image_url?: string | null
+          cover_price?: string | null
           created_at?: string
           current_value?: number | null
+          editor?: string | null
           era?: string | null
           estimated_raw_grade?: string | null
           first_appearance_of?: string | null
@@ -166,12 +185,14 @@ export type Database = {
           graded_date?: string | null
           grader_notes?: string | null
           id?: string
+          inker?: string | null
           inner_well_notes?: string | null
           is_key_issue?: boolean | null
           is_signed?: boolean | null
           issue_number?: string | null
           key_issue_reason?: string | null
           label_type?: string | null
+          letterer?: string | null
           location?: string | null
           media_tie_in?: string | null
           notes?: string | null
@@ -184,7 +205,10 @@ export type Database = {
           signatures?: Json | null
           signed_by?: string | null
           signed_date?: string | null
+          story_arc?: string | null
+          synopsis?: string | null
           title?: string
+          upc_code?: string | null
           updated_at?: string
           user_id?: string
           variant_type?: string | null

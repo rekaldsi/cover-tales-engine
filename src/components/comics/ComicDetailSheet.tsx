@@ -3,7 +3,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sh
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Comic, ERA_LABELS, SignatureType, Signature, SIGNATURE_TYPE_LABELS } from '@/types/comic';
-import { Star, Award, Calendar, User, MapPin, Trash2, Loader2, PenTool, CheckCircle2, ShieldCheck, Settings, Edit, Palette, BookOpen } from 'lucide-react';
+import { Star, Award, Calendar, User, MapPin, Trash2, Loader2, PenTool, CheckCircle2, ShieldCheck, Settings, Edit, Palette, BookOpen, FileText, Users, ChevronDown, ChevronUp } from 'lucide-react';
 import { useComicEnrichment } from '@/hooks/useComicEnrichment';
 import { MarkAsSignedDialog } from './MarkAsSignedDialog';
 import { EditComicDialog } from './EditComicDialog';
@@ -11,6 +11,7 @@ import { ShouldIGradeThis } from '@/components/insights/ShouldIGradeThis';
 import { GradingDetails } from './GradingDetails';
 import { GradingDetailsForm } from './GradingDetailsForm';
 import { useCertVerification } from '@/hooks/useCertVerification';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 
 interface ComicDetailSheetProps {
   comic: Comic | null;
@@ -27,6 +28,7 @@ export function ComicDetailSheet({ comic, open, onOpenChange, onDelete, onUpdate
   const [signDialogOpen, setSignDialogOpen] = useState(false);
   const [gradingFormOpen, setGradingFormOpen] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [synopsisOpen, setSynopsisOpen] = useState(false);
 
   // Auto-enrich when sheet opens
   useEffect(() => {
@@ -342,6 +344,54 @@ export function ComicDetailSheet({ comic, open, onOpenChange, onDelete, onUpdate
             <ShouldIGradeThis comic={displayComic} />
           </div>
           
+          {/* Synopsis Section */}
+          {displayComic.synopsis && (
+            <Collapsible open={synopsisOpen} onOpenChange={setSynopsisOpen} className="mb-6">
+              <CollapsibleTrigger asChild>
+                <Button variant="ghost" className="w-full justify-between p-3 h-auto bg-secondary/30 hover:bg-secondary/50">
+                  <span className="flex items-center gap-2 text-sm font-semibold">
+                    <FileText className="h-4 w-4" />
+                    Synopsis
+                  </span>
+                  {synopsisOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                </Button>
+              </CollapsibleTrigger>
+              <CollapsibleContent className="p-3 pt-2">
+                <p className="text-sm text-foreground/80 leading-relaxed">{displayComic.synopsis}</p>
+              </CollapsibleContent>
+            </Collapsible>
+          )}
+
+          {/* Characters Section */}
+          {displayComic.characters && displayComic.characters.length > 0 && (
+            <div className="mb-6">
+              <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-2 flex items-center gap-2">
+                <Users className="h-4 w-4" />
+                Featured Characters
+              </h3>
+              <div className="flex flex-wrap gap-1.5">
+                {displayComic.characters.slice(0, 8).map((character, i) => (
+                  <Badge key={i} variant="outline" className="text-xs">
+                    {character}
+                  </Badge>
+                ))}
+                {displayComic.characters.length > 8 && (
+                  <Badge variant="outline" className="text-xs text-muted-foreground">
+                    +{displayComic.characters.length - 8} more
+                  </Badge>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Story Arc */}
+          {displayComic.storyArc && (
+            <div className="mb-6 p-3 rounded-lg bg-primary/5 border border-primary/10">
+              <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Story Arc</p>
+              <p className="text-sm font-medium text-foreground">{displayComic.storyArc}</p>
+            </div>
+          )}
+          
           {/* Details */}
           <div className="space-y-4 mb-6">
             <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Details</h3>
@@ -362,8 +412,23 @@ export function ComicDetailSheet({ comic, open, onOpenChange, onDelete, onUpdate
               {displayComic.coverArtist && (
                 <DetailRow icon={Palette} label="Cover Artist" value={displayComic.coverArtist} />
               )}
+              {displayComic.colorist && (
+                <DetailRow icon={Palette} label="Colorist" value={displayComic.colorist} />
+              )}
+              {displayComic.inker && (
+                <DetailRow icon={Palette} label="Inker" value={displayComic.inker} />
+              )}
+              {displayComic.letterer && (
+                <DetailRow icon={User} label="Letterer" value={displayComic.letterer} />
+              )}
               {displayComic.location && (
                 <DetailRow icon={MapPin} label="Location" value={displayComic.location} />
+              )}
+              {displayComic.upcCode && (
+                <DetailRow icon={BookOpen} label="UPC" value={displayComic.upcCode} />
+              )}
+              {displayComic.coverPrice && (
+                <DetailRow icon={BookOpen} label="Cover Price" value={displayComic.coverPrice} />
               )}
               
               {/* Show placeholder if no creator data */}

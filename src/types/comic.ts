@@ -79,6 +79,10 @@ export interface Comic {
   writer?: string;
   artist?: string;
   coverArtist?: string;
+  colorist?: string;
+  inker?: string;
+  letterer?: string;
+  editor?: string;
   
   // Grading
   gradeStatus: GradeStatus;
@@ -105,7 +109,11 @@ export interface Comic {
   isKeyIssue?: boolean;
   keyIssueReason?: string;
   
-  // Enhanced data
+  // Enhanced data - NEW FIELDS
+  synopsis?: string;
+  storyArc?: string;
+  upcCode?: string;
+  coverPrice?: string;
   firstAppearanceOf?: string;
   characters?: string[];
   mediaTieIn?: string;

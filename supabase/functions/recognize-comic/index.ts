@@ -7,7 +7,7 @@ const corsHeaders = {
 
 const COMICVINE_API = 'https://comicvine.gamespot.com/api';
 
-async function fetchComicVineCover(title: string, issueNumber: string, publisher: string, apiKey: string) {
+async function fetchComicVineData(title: string, issueNumber: string, publisher: string, apiKey: string) {
   try {
     console.log('Fetching ComicVine data for:', { title, issueNumber, publisher });
 
@@ -47,12 +47,13 @@ async function fetchComicVineCover(title: string, issueNumber: string, publisher
       if (publisherMatch) matchedVolume = publisherMatch;
     }
 
-    // Fetch issues from volume
+    // Fetch issues from volume with full details
     const issuesUrl = new URL(`${COMICVINE_API}/issues/`);
     issuesUrl.searchParams.set('api_key', apiKey);
     issuesUrl.searchParams.set('format', 'json');
     issuesUrl.searchParams.set('filter', `volume:${matchedVolume.id}`);
     issuesUrl.searchParams.set('limit', '100');
+    issuesUrl.searchParams.set('field_list', 'id,issue_number,name,cover_date,image,description,person_credits,character_credits,story_arc_credits');
 
     const issuesResponse = await fetch(issuesUrl.toString(), {
       headers: { 'User-Agent': 'KODEX/1.0' }
@@ -75,12 +76,68 @@ async function fetchComicVineCover(title: string, issueNumber: string, publisher
 
     if (!matchedIssue) return null;
 
+    // Fetch full issue details for credits
+    const issueDetailUrl = new URL(`${COMICVINE_API}/issue/4000-${matchedIssue.id}/`);
+    issueDetailUrl.searchParams.set('api_key', apiKey);
+    issueDetailUrl.searchParams.set('format', 'json');
+    issueDetailUrl.searchParams.set('field_list', 'id,name,description,person_credits,character_credits,story_arc_credits');
+
+    let issueDetails = null;
+    try {
+      const detailResponse = await fetch(issueDetailUrl.toString(), {
+        headers: { 'User-Agent': 'KODEX/1.0' }
+      });
+      if (detailResponse.ok) {
+        const detailData = await detailResponse.json();
+        issueDetails = detailData.results;
+      }
+    } catch (e) {
+      console.log('Could not fetch issue details:', e);
+    }
+
+    // Extract creators from credits
+    const credits = issueDetails?.person_credits || matchedIssue.person_credits || [];
+    const getCreatorByRole = (role: string) => 
+      credits.find((c: any) => c.role?.toLowerCase().includes(role))?.name || null;
+
+    // Extract characters
+    const characters = (issueDetails?.character_credits || matchedIssue.character_credits || [])
+      .slice(0, 10)
+      .map((c: any) => c.name);
+
+    // Extract story arc
+    const storyArcs = issueDetails?.story_arc_credits || matchedIssue.story_arc_credits || [];
+    const storyArc = storyArcs[0]?.name || null;
+
+    // Clean description (remove HTML)
+    let synopsis = issueDetails?.description || matchedIssue.description || null;
+    if (synopsis) {
+      synopsis = synopsis
+        .replace(/<[^>]*>/g, '')
+        .replace(/&nbsp;/g, ' ')
+        .replace(/&amp;/g, '&')
+        .replace(/&lt;/g, '<')
+        .replace(/&gt;/g, '>')
+        .trim()
+        .substring(0, 1000);
+    }
+
     return {
       comicvineId: matchedIssue.id.toString(),
       title: matchedVolume.name,
       coverImageUrl: matchedIssue.image?.original_url || matchedIssue.image?.medium_url,
       coverDate: matchedIssue.cover_date,
       publisher: matchedVolume.publisher?.name,
+      synopsis,
+      characters,
+      storyArc,
+      writer: getCreatorByRole('writer'),
+      artist: getCreatorByRole('artist') || getCreatorByRole('penciler'),
+      coverArtist: getCreatorByRole('cover'),
+      colorist: getCreatorByRole('colorist'),
+      inker: getCreatorByRole('inker'),
+      letterer: getCreatorByRole('letterer'),
+      editor: getCreatorByRole('editor'),
     };
   } catch (error) {
     console.error('ComicVine fetch error:', error);
@@ -114,9 +171,9 @@ serve(async (req) => {
       );
     }
 
-    console.log('Recognizing comic cover with AI...');
+    console.log('Recognizing comic cover with AI (Gemini 2.5 Pro)...');
 
-    // Step 1: Use AI to identify the comic from the image
+    // Step 1: Use AI to identify the comic from the image - UPGRADED TO GEMINI PRO
     const aiResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -124,7 +181,7 @@ serve(async (req) => {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'google/gemini-2.5-flash',
+        model: 'google/gemini-2.5-pro',
         messages: [
           {
             role: 'system',
@@ -146,6 +203,11 @@ PUBLISHER DETECTION - This is CRITICAL:
   - Character: Spider-Man, X-Men, Avengers = Marvel
   - Character: Batman, Superman, Wonder Woman, Flash = DC
   - Character: Spawn, Invincible, Savage Dragon = Image
+
+BARCODE/UPC DETECTION:
+- Look for UPC barcode on the cover (usually bottom left or right)
+- Extract the full UPC number if visible (typically 12-14 digits)
+- Also look for cover price (e.g., "$3.99", "$4.99")
 
 CRITICAL INSTRUCTIONS FOR GRADED SLABS:
 - If you see a comic in a plastic holder/slab, look for:
@@ -177,19 +239,29 @@ Based on visible defects, estimate a raw grade using CGC standards:
 - 5.0-5.5: Average wear (VG/FN)
 - 4.0 and below: Heavy wear, major defects
 
+KEY ISSUE DETECTION - Be specific about WHY it's a key issue:
+- First appearances (e.g., "First appearance of Venom")
+- Deaths of major characters
+- Origin stories
+- First issue of a series
+- Significant storyline events
+- Creator debuts
+
 For comic covers, identify:
 - title: The series title (e.g., "Amazing Spider-Man", "Batman", "Uncanny X-Men")
 - issueNumber: The issue number as a string (look for "#" followed by number)
 - publisher: The publisher (MUST identify: Marvel Comics, DC Comics, Image Comics, Dark Horse, IDW, Valiant, etc.)
-- variant: Variant type if applicable
+- variant: Variant type if applicable (e.g., "Variant Cover", "1:25 Incentive", "Virgin Cover")
 - printNumber: Print number (1 for first print, 2 for second, etc.)
+- upcCode: The UPC/barcode number if visible
+- coverPrice: The cover price if visible (e.g., "$3.99")
 - isGraded: true if in a grading slab (CGC, CBCS, PGX plastic holder)
 - gradingCompany: If graded, which company (cgc, cbcs, pgx) - use lowercase
 - grade: If graded, the numeric grade as shown on label
 - certNumber: If graded, the full certification number from the label
 - coverDate: Cover date in YYYY-MM format if visible
 - isKeyIssue: Whether this is likely a key issue
-- keyIssueReason: If key issue, why
+- keyIssueReason: If key issue, explain why with specific details
 - confidence: Your confidence level (high, medium, low)
 
 CONDITION ANALYSIS FIELDS (for RAW comics only):
@@ -198,6 +270,10 @@ CONDITION ANALYSIS FIELDS (for RAW comics only):
 - conditionNotes: Brief description of the overall condition
 - visibleDefects: Array of specific defects you can see (e.g., ["spine stress", "corner wear", "light crease on cover"])
 
+COVER DETAILS (try to identify if visible):
+- coverArtist: The cover artist if you can identify their style or if credited
+- featuredCharacters: Array of main characters visible on the cover
+
 JSON schema:
 {
   "title": string,
@@ -205,6 +281,8 @@ JSON schema:
   "publisher": string,
   "variant": string | null,
   "printNumber": number,
+  "upcCode": string | null,
+  "coverPrice": string | null,
   "isGraded": boolean,
   "gradingCompany": "cgc" | "cbcs" | "pgx" | null,
   "grade": string | null,
@@ -216,7 +294,9 @@ JSON schema:
   "estimatedRawGrade": string | null,
   "conditionConfidence": "high" | "medium" | "low" | null,
   "conditionNotes": string | null,
-  "visibleDefects": string[] | null
+  "visibleDefects": string[] | null,
+  "coverArtist": string | null,
+  "featuredCharacters": string[] | null
 }`
           },
           {
@@ -224,7 +304,7 @@ JSON schema:
             content: [
               {
                 type: 'text',
-                text: 'Identify this comic book cover AND analyze its condition. Pay special attention to the PUBLISHER - look for logos, text, or infer from the characters. If this is a RAW comic (not in a grading slab), carefully examine visible defects and estimate a grade. Return ONLY valid JSON.'
+                text: 'Identify this comic book cover AND analyze its condition. Pay special attention to the PUBLISHER - look for logos, text, or infer from the characters. Also look for any UPC barcode and cover price. If this is a RAW comic (not in a grading slab), carefully examine visible defects and estimate a grade. Return ONLY valid JSON.'
               },
               {
                 type: 'image_url',
@@ -277,7 +357,7 @@ JSON schema:
       const cleanContent = content.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
       comicData = JSON.parse(cleanContent);
       
-      // Clean issue number - remove leading # if present (AI sometimes returns "#1" instead of "1")
+      // Clean issue number - remove leading # if present
       if (comicData.issueNumber) {
         comicData.issueNumber = comicData.issueNumber.toString().replace(/^#/, '').trim();
       }
@@ -291,10 +371,10 @@ JSON schema:
 
     console.log('AI identified:', comicData.title, '#' + comicData.issueNumber);
 
-    // Step 2: Fetch official cover from ComicVine (if API key is configured)
+    // Step 2: Fetch full data from ComicVine (if API key is configured)
     if (COMICVINE_API_KEY && comicData.title) {
-      console.log('Fetching official cover from ComicVine...');
-      const comicVineData = await fetchComicVineCover(
+      console.log('Fetching full data from ComicVine...');
+      const comicVineData = await fetchComicVineData(
         comicData.title,
         comicData.issueNumber,
         comicData.publisher,
@@ -302,7 +382,7 @@ JSON schema:
       );
 
       if (comicVineData) {
-        console.log('ComicVine match found:', comicVineData.coverImageUrl ? 'with cover' : 'no cover');
+        console.log('ComicVine match found with full data');
         
         // Check if AI detected a variant - if so, DON'T replace the cover
         const isVariant = comicData.variant && 
@@ -318,16 +398,27 @@ JSON schema:
         comicData = {
           ...comicData,
           comicvineId: comicVineData.comicvineId,
-          // Only use ComicVine cover if NOT a variant (preserve variant covers)
+          // Only use ComicVine cover if NOT a variant
           coverImageUrl: isVariant ? comicData.coverImageUrl : comicVineData.coverImageUrl,
           title: comicVineData.title || comicData.title,
           coverDate: comicVineData.coverDate || comicData.coverDate,
           publisher: comicVineData.publisher || comicData.publisher,
-          isVariant: isVariant || false, // Flag for UI to show cover selection
+          isVariant: isVariant || false,
+          // New enrichment data
+          synopsis: comicVineData.synopsis,
+          characters: comicVineData.characters || comicData.featuredCharacters,
+          storyArc: comicVineData.storyArc,
+          writer: comicVineData.writer,
+          artist: comicVineData.artist,
+          coverArtist: comicVineData.coverArtist || comicData.coverArtist,
+          colorist: comicVineData.colorist,
+          inker: comicVineData.inker,
+          letterer: comicVineData.letterer,
+          editor: comicVineData.editor,
         };
         
         if (isVariant) {
-          console.log('Variant detected - preserving AI-identified cover, flagging for cover selection');
+          console.log('Variant detected - preserving AI-identified cover');
         }
       } else {
         console.log('No ComicVine match, using AI data only');

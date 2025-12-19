@@ -44,3 +44,6 @@ verify_jwt = false
 
 [functions.aggregate-comic-data]
 verify_jwt = false
+
+[functions.enrich-comic-details]
+verify_jwt = false
