@@ -4,6 +4,21 @@ export type ConditionGrade = '0.5' | '1.0' | '1.5' | '2.0' | '2.5' | '3.0' | '3.
 
 export type SignatureType = 'witnessed' | 'cgc_ss' | 'cbcs_verified' | 'unverified';
 
+export interface Signature {
+  id: string;
+  signedBy: string;
+  signedDate?: string;
+  signatureType: SignatureType;
+  verificationNotes?: string;
+}
+
+export const SIGNATURE_TYPE_LABELS: Record<SignatureType, string> = {
+  witnessed: 'Witnessed',
+  cgc_ss: 'CGC Signature Series',
+  cbcs_verified: 'CBCS Verified',
+  unverified: 'Unverified',
+};
+
 export type LabelType = 
   | 'universal' 
   | 'signature_series' 
@@ -70,11 +85,14 @@ export interface Comic {
   grade?: ConditionGrade;
   certNumber?: string;
   
-  // Signature tracking
+  // Signature tracking (legacy single signature fields for backwards compat)
   isSigned?: boolean;
   signedBy?: string;
   signedDate?: string;
   signatureType?: SignatureType;
+  
+  // Multiple signatures support
+  signatures?: Signature[];
   
   // Collection info
   purchasePrice?: number;

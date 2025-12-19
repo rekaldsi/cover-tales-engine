@@ -261,12 +261,13 @@ export function ContinuousHunting({ ownedComics, onExit }: ContinuousHuntingProp
   }
 
   return (
-    <div className="relative flex flex-col h-full">
-      {/* Camera viewport - takes all available space */}
-      <div className="relative flex-1 min-h-0 bg-black rounded-lg overflow-hidden">
+    <div className="relative flex flex-col h-full min-h-[500px]">
+      {/* Camera viewport - takes all available space with explicit min height */}
+      <div className="relative flex-1 min-h-[300px] bg-black rounded-lg overflow-hidden">
         <video
           ref={videoRef}
           className="absolute inset-0 w-full h-full object-cover"
+          style={{ minWidth: '100%', minHeight: '100%' }}
           playsInline
           muted
           autoPlay

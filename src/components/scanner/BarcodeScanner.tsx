@@ -44,6 +44,8 @@ export function BarcodeScanner({ onScan, onError }: BarcodeScannerProps) {
   const [hasPermission, setHasPermission] = useState<boolean | null>(null);
   const [devices, setDevices] = useState<MediaDeviceInfo[]>([]);
   const [selectedDevice, setSelectedDevice] = useState<string>('');
+  const [lastScannedCode, setLastScannedCode] = useState<string | null>(null);
+  const hasAutoStarted = useRef(false);
 
   const startScanning = useCallback(async (deviceId?: string) => {
     if (!videoRef.current) return;
@@ -105,21 +107,27 @@ export function BarcodeScanner({ onScan, onError }: BarcodeScannerProps) {
         videoRef.current.srcObject = stream;
       }
 
-      // Start continuous scanning
-      await reader.decodeFromVideoDevice(
-        targetDevice,
-        videoRef.current,
-        (result, error) => {
-          if (result) {
-            const text = result.getText();
-            const format = result.getBarcodeFormat().toString();
-            const parsedUPC = parseComicUPC(text);
-            console.log('Barcode detected:', text, format, parsedUPC);
-            onScan(text, format, parsedUPC);
+        // Start continuous scanning with higher resolution
+        await reader.decodeFromVideoDevice(
+          targetDevice,
+          videoRef.current,
+          (result, error) => {
+            if (result) {
+              const text = result.getText();
+              // Avoid duplicate scans
+              if (text !== lastScannedCode) {
+                setLastScannedCode(text);
+                const format = result.getBarcodeFormat().toString();
+                const parsedUPC = parseComicUPC(text);
+                console.log('Barcode detected:', text, format, parsedUPC);
+                onScan(text, format, parsedUPC);
+                // Reset after delay to allow re-scanning same code
+                setTimeout(() => setLastScannedCode(null), 3000);
+              }
+            }
+            // Ignore errors during continuous scanning (they're mostly "not found yet")
           }
-          // Ignore errors during continuous scanning (they're mostly "not found yet")
-        }
-      );
+        );
     } catch (err) {
       console.error('Scanner error:', err);
       setHasPermission(false);
@@ -151,11 +159,16 @@ export function BarcodeScanner({ onScan, onError }: BarcodeScannerProps) {
     }
   }, [devices, selectedDevice, stopScanning, startScanning]);
 
+  // Auto-start scanning on mount
   useEffect(() => {
+    if (!hasAutoStarted.current) {
+      hasAutoStarted.current = true;
+      startScanning();
+    }
     return () => {
       stopScanning();
     };
-  }, [stopScanning]);
+  }, [stopScanning, startScanning]);
 
   if (hasPermission === false) {
     return (

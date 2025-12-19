@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Comic, ERA_LABELS, SignatureType } from '@/types/comic';
+import { Comic, ERA_LABELS, SignatureType, Signature, SIGNATURE_TYPE_LABELS } from '@/types/comic';
 import { Star, Award, Calendar, User, MapPin, Trash2, Loader2, PenTool, CheckCircle2, ShieldCheck, Settings, Edit, Palette, BookOpen } from 'lucide-react';
 import { useComicEnrichment } from '@/hooks/useComicEnrichment';
 import { MarkAsSignedDialog } from './MarkAsSignedDialog';
@@ -60,19 +60,23 @@ export function ComicDetailSheet({ comic, open, onOpenChange, onDelete, onUpdate
     ? displayComic.currentValue - displayComic.purchasePrice 
     : null;
 
-  const handleMarkAsSigned = async (signedBy: string, signedDate: string, signatureType: SignatureType) => {
+  const handleMarkAsSigned = async (signatures: Signature[]) => {
+    // Set legacy fields from first signature for backwards compatibility
+    const firstSig = signatures[0];
     await onUpdate(displayComic.id, {
       isSigned: true,
-      signedBy,
-      signedDate,
-      signatureType,
+      signedBy: firstSig?.signedBy,
+      signedDate: firstSig?.signedDate,
+      signatureType: firstSig?.signatureType,
+      signatures,
     });
     setEnrichedComic(prev => prev ? {
       ...prev,
       isSigned: true,
-      signedBy,
-      signedDate,
-      signatureType,
+      signedBy: firstSig?.signedBy,
+      signedDate: firstSig?.signedDate,
+      signatureType: firstSig?.signatureType,
+      signatures,
     } : null);
   };
 
@@ -82,6 +86,7 @@ export function ComicDetailSheet({ comic, open, onOpenChange, onDelete, onUpdate
       signedBy: undefined,
       signedDate: undefined,
       signatureType: undefined,
+      signatures: [],
     });
     setEnrichedComic(prev => prev ? {
       ...prev,
@@ -89,17 +94,31 @@ export function ComicDetailSheet({ comic, open, onOpenChange, onDelete, onUpdate
       signedBy: undefined,
       signedDate: undefined,
       signatureType: undefined,
+      signatures: [],
     } : null);
   };
 
-  const getSignatureTypeLabel = (type?: SignatureType) => {
-    switch (type) {
-      case 'witnessed': return 'Witnessed';
-      case 'cgc_ss': return 'CGC Signature Series';
-      case 'cbcs_verified': return 'CBCS Verified';
-      case 'unverified': return 'Unverified';
-      default: return 'Signed';
+  // Get all signatures - use array or create from legacy fields
+  const getSignatures = (): Signature[] => {
+    if (displayComic.signatures && displayComic.signatures.length > 0) {
+      return displayComic.signatures;
     }
+    if (displayComic.isSigned && displayComic.signedBy) {
+      return [{
+        id: 'legacy',
+        signedBy: displayComic.signedBy,
+        signedDate: displayComic.signedDate,
+        signatureType: displayComic.signatureType || 'witnessed',
+      }];
+    }
+    return [];
+  };
+
+  const signatures = getSignatures();
+
+  const getSignatureTypeLabel = (type?: SignatureType) => {
+    if (!type) return 'Signed';
+    return SIGNATURE_TYPE_LABELS[type] || 'Signed';
   };
 
   const handleVerifyCert = async () => {
@@ -197,27 +216,44 @@ export function ComicDetailSheet({ comic, open, onOpenChange, onDelete, onUpdate
             </div>
           )}
 
-          {/* Signature Info */}
-          {displayComic.isSigned && (
+          {/* Signature Info - Updated for multiple signatures */}
+          {displayComic.isSigned && signatures.length > 0 && (
             <div className="p-4 rounded-lg bg-comic-green/10 border border-comic-green/20 mb-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-comic-green flex items-center gap-2">
+              <div className="flex items-start justify-between">
+                <div className="flex-1">
+                  <p className="text-sm font-medium text-comic-green flex items-center gap-2 mb-2">
                     <CheckCircle2 className="h-4 w-4" />
-                    {getSignatureTypeLabel(displayComic.signatureType)}
+                    {signatures.length === 1 
+                      ? getSignatureTypeLabel(signatures[0].signatureType)
+                      : `${signatures.length} Signatures`
+                    }
                   </p>
-                  <p className="text-sm text-foreground mt-1">
-                    Signed by: <span className="font-medium">{displayComic.signedBy}</span>
-                  </p>
-                  {displayComic.signedDate && (
-                    <p className="text-xs text-muted-foreground">
-                      {formatDate(displayComic.signedDate)}
-                    </p>
-                  )}
+                  <div className="space-y-2">
+                    {signatures.map((sig, index) => (
+                      <div key={sig.id || index} className="text-sm">
+                        <span className="text-foreground font-medium">{sig.signedBy}</span>
+                        {signatures.length > 1 && (
+                          <span className="text-muted-foreground text-xs ml-2">
+                            ({getSignatureTypeLabel(sig.signatureType)})
+                          </span>
+                        )}
+                        {sig.signedDate && (
+                          <p className="text-xs text-muted-foreground">
+                            {formatDate(sig.signedDate)}
+                          </p>
+                        )}
+                      </div>
+                    ))}
+                  </div>
                 </div>
-                <Button variant="ghost" size="sm" onClick={handleRemoveSignature}>
-                  Remove
-                </Button>
+                <div className="flex gap-2">
+                  <Button variant="ghost" size="sm" onClick={() => setSignDialogOpen(true)}>
+                    Edit
+                  </Button>
+                  <Button variant="ghost" size="sm" onClick={handleRemoveSignature}>
+                    Remove
+                  </Button>
+                </div>
               </div>
             </div>
           )}
