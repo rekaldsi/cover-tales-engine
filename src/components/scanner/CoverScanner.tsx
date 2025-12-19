@@ -1,8 +1,9 @@
-import { useRef, useState, useCallback } from 'react';
+import { useRef, useState, useCallback, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
-import { Camera, Upload, RefreshCw, Loader2 } from 'lucide-react';
+import { Camera, Upload, RefreshCw, Loader2, Scan, Square } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import { Progress } from '@/components/ui/progress';
 
 interface RecognizedComic {
   title: string;
@@ -20,7 +21,7 @@ interface RecognizedComic {
   keyIssueReason?: string;
   confidence: 'high' | 'medium' | 'low';
   isVariant?: boolean;
-  userCapturedImage?: string; // Pass user's original photo for cover selection
+  userCapturedImage?: string;
 }
 
 interface CoverScannerProps {
@@ -34,11 +35,208 @@ export function CoverScanner({ onRecognize, onError }: CoverScannerProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
+  const animationRef = useRef<number | null>(null);
+  const lastFrameHashRef = useRef<string>('');
+  const stableStartRef = useRef<number | null>(null);
   
   const [isStreaming, setIsStreaming] = useState(false);
+  const [isLiveScanning, setIsLiveScanning] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [capturedImage, setCapturedImage] = useState<string | null>(null);
+  const [stabilityProgress, setStabilityProgress] = useState(0);
   const { toast } = useToast();
+
+  const STABILITY_MS = 800; // Time to hold steady before auto-scan
+  const CHANGE_THRESHOLD = 0.15; // Similarity threshold
+
+  // Generate a simple hash from canvas data for comparison
+  const generateFrameHash = useCallback((imageData: ImageData): string => {
+    const data = imageData.data;
+    let hash = 0;
+    const step = Math.floor(data.length / 100);
+    for (let i = 0; i < data.length; i += step) {
+      hash = ((hash << 5) - hash + data[i]) | 0;
+    }
+    return hash.toString(36);
+  }, []);
+
+  // Compare two frames for similarity
+  const compareFrames = useCallback((current: ImageData, previous: ImageData): number => {
+    if (current.width !== previous.width || current.height !== previous.height) return 0;
+    
+    let matchingPixels = 0;
+    const sampleSize = 1000;
+    const step = Math.floor(current.data.length / 4 / sampleSize);
+    
+    for (let i = 0; i < sampleSize; i++) {
+      const idx = i * step * 4;
+      const diff = Math.abs(current.data[idx] - previous.data[idx]) +
+                   Math.abs(current.data[idx + 1] - previous.data[idx + 1]) +
+                   Math.abs(current.data[idx + 2] - previous.data[idx + 2]);
+      if (diff < 30) matchingPixels++;
+    }
+    
+    return matchingPixels / sampleSize;
+  }, []);
+
+  const previousFrameRef = useRef<ImageData | null>(null);
+
+  // Process a single frame for live scanning
+  const processLiveFrame = useCallback(async () => {
+    if (!videoRef.current || !canvasRef.current || isProcessing) return;
+
+    const video = videoRef.current;
+    const canvas = canvasRef.current;
+    
+    canvas.width = video.videoWidth || 640;
+    canvas.height = video.videoHeight || 480;
+    
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    ctx.drawImage(video, 0, 0);
+    const currentFrame = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    const currentHash = generateFrameHash(currentFrame);
+
+    // Check if frame is stable
+    if (previousFrameRef.current) {
+      const similarity = compareFrames(currentFrame, previousFrameRef.current);
+      
+      if (similarity >= (1 - CHANGE_THRESHOLD)) {
+        // Frame is stable
+        if (!stableStartRef.current) {
+          stableStartRef.current = Date.now();
+        }
+        
+        const stableDuration = Date.now() - stableStartRef.current;
+        const progress = Math.min((stableDuration / STABILITY_MS) * 100, 100);
+        setStabilityProgress(progress);
+
+        // If stable long enough and not recently scanned, trigger recognition
+        if (stableDuration >= STABILITY_MS && currentHash !== lastFrameHashRef.current) {
+          lastFrameHashRef.current = currentHash;
+          stableStartRef.current = null;
+          setStabilityProgress(0);
+          
+          // Capture and recognize
+          const imageData = canvas.toDataURL('image/jpeg', 0.85);
+          setIsProcessing(true);
+          
+          try {
+            const { data, error } = await supabase.functions.invoke('recognize-comic', {
+              body: { imageBase64: imageData }
+            });
+
+            if (error) throw error;
+
+            if (data.success && data.comic) {
+              // Haptic feedback
+              if (navigator.vibrate) navigator.vibrate([100, 50, 100]);
+              
+              toast({
+                title: 'Comic Recognized!',
+                description: `${data.comic.title} #${data.comic.issueNumber}`,
+              });
+              
+              // Stop live scanning and show result
+              stopLiveScanning();
+              setCapturedImage(imageData);
+              onRecognize({
+                ...data.comic,
+                userCapturedImage: imageData,
+              });
+            }
+          } catch (err) {
+            console.error('Live scan recognition error:', err);
+            // Don't show error toast on every failed frame, just continue scanning
+          } finally {
+            setIsProcessing(false);
+          }
+        }
+      } else {
+        // Frame changed, reset stability
+        stableStartRef.current = null;
+        setStabilityProgress(0);
+      }
+    }
+
+    previousFrameRef.current = currentFrame;
+  }, [isProcessing, generateFrameHash, compareFrames, toast, onRecognize]);
+
+  // Start live scanning loop
+  const startLiveScanning = useCallback(async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          facingMode: 'environment',
+          width: { ideal: 1280 },
+          height: { ideal: 960 },
+        }
+      });
+      
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        streamRef.current = stream;
+        setIsStreaming(true);
+        setIsLiveScanning(true);
+        lastFrameHashRef.current = '';
+        previousFrameRef.current = null;
+        stableStartRef.current = null;
+      }
+    } catch (err) {
+      console.error('Camera error:', err);
+      onError?.('Failed to access camera');
+      toast({
+        title: 'Camera Error',
+        description: 'Could not access your camera.',
+        variant: 'destructive',
+      });
+    }
+  }, [onError, toast]);
+
+  // Live scanning animation loop
+  useEffect(() => {
+    if (!isLiveScanning || !isStreaming) return;
+
+    const runFrame = async () => {
+      await processLiveFrame();
+      if (isLiveScanning) {
+        animationRef.current = requestAnimationFrame(runFrame);
+      }
+    };
+
+    // Small delay to let video initialize
+    const timeout = setTimeout(() => {
+      animationRef.current = requestAnimationFrame(runFrame);
+    }, 500);
+
+    return () => {
+      clearTimeout(timeout);
+      if (animationRef.current) {
+        cancelAnimationFrame(animationRef.current);
+      }
+    };
+  }, [isLiveScanning, isStreaming, processLiveFrame]);
+
+  const stopLiveScanning = useCallback(() => {
+    setIsLiveScanning(false);
+    if (animationRef.current) {
+      cancelAnimationFrame(animationRef.current);
+      animationRef.current = null;
+    }
+  }, []);
+
+  const stopCamera = useCallback(() => {
+    stopLiveScanning();
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach(track => track.stop());
+      streamRef.current = null;
+    }
+    setIsStreaming(false);
+    previousFrameRef.current = null;
+    stableStartRef.current = null;
+    setStabilityProgress(0);
+  }, [stopLiveScanning]);
 
   const startCamera = useCallback(async () => {
     try {
@@ -65,14 +263,6 @@ export function CoverScanner({ onRecognize, onError }: CoverScannerProps) {
       });
     }
   }, [onError, toast]);
-
-  const stopCamera = useCallback(() => {
-    if (streamRef.current) {
-      streamRef.current.getTracks().forEach(track => track.stop());
-      streamRef.current = null;
-    }
-    setIsStreaming(false);
-  }, []);
 
   const captureFrame = useCallback(() => {
     if (!videoRef.current || !canvasRef.current) return;
@@ -123,10 +313,9 @@ export function CoverScanner({ onRecognize, onError }: CoverScannerProps) {
           title: 'Comic Recognized!',
           description: `${data.comic.title} #${data.comic.issueNumber}`,
         });
-        // Pass the user's captured image along with recognition data
         onRecognize({
           ...data.comic,
-          userCapturedImage: capturedImage, // Include user's photo for cover selection
+          userCapturedImage: capturedImage,
         });
       } else {
         throw new Error(data.error || 'Failed to recognize comic');
@@ -150,12 +339,19 @@ export function CoverScanner({ onRecognize, onError }: CoverScannerProps) {
     setIsProcessing(false);
   }, []);
 
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      stopCamera();
+    };
+  }, [stopCamera]);
+
   return (
     <div className="relative w-full">
       {/* Hidden canvas for capture */}
       <canvas ref={canvasRef} className="hidden" />
       
-      {/* Hidden file input for gallery/upload (no capture) */}
+      {/* Hidden file input for gallery/upload */}
       <input
         ref={fileInputRef}
         type="file"
@@ -177,30 +373,58 @@ export function CoverScanner({ onRecognize, onError }: CoverScannerProps) {
       {/* Preview area */}
       <div className="relative aspect-[3/4] bg-muted rounded-lg overflow-hidden">
         {capturedImage ? (
-          // Show captured/uploaded image
           <img
             src={capturedImage}
             alt="Captured comic"
             className="w-full h-full object-contain"
           />
         ) : isStreaming ? (
-          // Show camera stream
-          <video
-            ref={videoRef}
-            autoPlay
-            playsInline
-            muted
-            className="w-full h-full object-cover"
-          />
+          <>
+            <video
+              ref={videoRef}
+              autoPlay
+              playsInline
+              muted
+              className="w-full h-full object-cover"
+            />
+            {/* Live scan overlay */}
+            {isLiveScanning && (
+              <div className="absolute inset-0 pointer-events-none">
+                {/* Scanning frame indicator */}
+                <div className="absolute inset-4 border-2 border-primary/50 rounded-lg" />
+                
+                {/* Stability progress bar */}
+                <div className="absolute bottom-4 left-4 right-4">
+                  <Progress 
+                    value={stabilityProgress} 
+                    className="h-2"
+                  />
+                  <p className="text-xs text-center mt-2 text-white drop-shadow-lg">
+                    {isProcessing ? 'Recognizing...' : 'Hold steady to auto-scan'}
+                  </p>
+                </div>
+
+                {/* Live indicator */}
+                <div className="absolute top-4 left-4 flex items-center gap-2 bg-destructive/90 text-destructive-foreground px-2 py-1 rounded text-xs">
+                  <span className="w-2 h-2 bg-white rounded-full animate-pulse" />
+                  LIVE SCAN
+                </div>
+              </div>
+            )}
+          </>
         ) : (
-          // Initial state
           <div className="flex flex-col items-center justify-center h-full p-8 text-center">
             <Camera className="w-16 h-16 text-muted-foreground mb-4" />
             <p className="text-muted-foreground mb-4">
-              Take a photo of your comic cover
+              Scan or photograph your comic cover
             </p>
             <div className="flex flex-col gap-2 w-full max-w-xs">
-              <Button onClick={() => cameraInputRef.current?.click()} className="w-full min-h-[44px]">
+              {/* Primary: Live Scan - no photo saved */}
+              <Button onClick={startLiveScanning} className="w-full min-h-[44px]">
+                <Scan className="w-4 h-4 mr-2" />
+                Live Scan (No Photo Saved)
+              </Button>
+              <Button variant="outline" onClick={() => cameraInputRef.current?.click()} className="w-full min-h-[44px]">
                 <Camera className="w-4 h-4 mr-2" />
                 Take Photo
               </Button>
@@ -209,14 +433,14 @@ export function CoverScanner({ onRecognize, onError }: CoverScannerProps) {
                 Choose from Gallery
               </Button>
               <Button variant="ghost" onClick={startCamera} className="w-full min-h-[44px] text-muted-foreground">
-                Use Live Viewfinder
+                Manual Viewfinder
               </Button>
             </div>
           </div>
         )}
 
         {/* Processing overlay */}
-        {isProcessing && (
+        {isProcessing && !isLiveScanning && (
           <div className="absolute inset-0 bg-background/80 flex items-center justify-center">
             <div className="text-center">
               <Loader2 className="w-12 h-12 animate-spin text-primary mx-auto mb-4" />
@@ -228,7 +452,14 @@ export function CoverScanner({ onRecognize, onError }: CoverScannerProps) {
 
       {/* Controls */}
       <div className="flex justify-center gap-2 mt-4">
-        {isStreaming && (
+        {isLiveScanning && (
+          <Button variant="destructive" onClick={stopCamera} className="min-h-[44px]">
+            <Square className="w-4 h-4 mr-2" />
+            Stop Scanning
+          </Button>
+        )}
+
+        {isStreaming && !isLiveScanning && (
           <>
             <Button onClick={captureFrame} className="min-h-[44px]">
               <Camera className="w-4 h-4 mr-2" />
