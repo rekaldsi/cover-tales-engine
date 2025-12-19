@@ -56,6 +56,7 @@ export type Database = {
           comicvine_id: string | null
           condition_confidence: string | null
           condition_notes: string | null
+          copy_number: number | null
           cover_artist: string | null
           cover_date: string | null
           cover_image_url: string | null
@@ -102,6 +103,7 @@ export type Database = {
           comicvine_id?: string | null
           condition_confidence?: string | null
           condition_notes?: string | null
+          copy_number?: number | null
           cover_artist?: string | null
           cover_date?: string | null
           cover_image_url?: string | null
@@ -148,6 +150,7 @@ export type Database = {
           comicvine_id?: string | null
           condition_confidence?: string | null
           condition_notes?: string | null
+          copy_number?: number | null
           cover_artist?: string | null
           cover_date?: string | null
           cover_image_url?: string | null

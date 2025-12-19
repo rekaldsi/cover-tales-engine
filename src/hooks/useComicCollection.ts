@@ -3,6 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { Comic, CollectionStats, ComicEra, getEraFromDate } from '@/types/comic';
+import { getIssueKey } from '@/hooks/useGroupedComics';
 
 const STORAGE_KEY = 'comic-collection-v4';
 
@@ -18,6 +19,7 @@ function mapDbToComic(row: any): Comic {
     variant: row.variant_type,
     coverImage: row.cover_image_url,
     era: row.era || 'current',
+    copyNumber: row.copy_number || 1,
     writer: row.writer,
     artist: row.artist,
     coverArtist: row.cover_artist,
@@ -55,7 +57,7 @@ function mapDbToComic(row: any): Comic {
 }
 
 // Map Comic to database row
-function mapComicToDb(comic: Omit<Comic, 'id' | 'dateAdded'>, userId: string) {
+function mapComicToDb(comic: Omit<Comic, 'id' | 'dateAdded'>, userId: string, copyNumber: number = 1) {
   return {
     user_id: userId,
     title: comic.title,
@@ -66,6 +68,7 @@ function mapComicToDb(comic: Omit<Comic, 'id' | 'dateAdded'>, userId: string) {
     variant_type: comic.variant,
     cover_image_url: comic.coverImage,
     era: comic.era || getEraFromDate(comic.coverDate),
+    copy_number: copyNumber,
     writer: comic.writer,
     artist: comic.artist,
     cover_artist: comic.coverArtist,
@@ -492,10 +495,15 @@ export function useComicCollection() {
       }
     }
 
+    // Calculate copy number for this issue
+    const issueKey = getIssueKey({ ...comicWithValue, id: '', dateAdded: '', era: comicWithValue.era || 'current' } as Comic);
+    const existingCopies = comics.filter(c => getIssueKey(c) === issueKey);
+    const copyNumber = existingCopies.length + 1;
+
     // Add to Supabase
     const { data, error } = await supabase
       .from('comics')
-      .insert(mapComicToDb(comicWithValue, user.id))
+      .insert(mapComicToDb(comicWithValue, user.id, copyNumber))
       .select()
       .single();
 
