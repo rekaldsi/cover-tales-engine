@@ -113,10 +113,12 @@ serve(async (req) => {
     console.log('Matched volume:', matchedVolume.name, 'ID:', matchedVolume.id);
 
     // Step 2: Get issues from the matched volume to find our specific issue
+    // IMPORTANT: Include field_list to get person_credits and description
     const issuesUrl = new URL(`${COMICVINE_API}/issues/`);
     issuesUrl.searchParams.set('api_key', COMICVINE_API_KEY);
     issuesUrl.searchParams.set('format', 'json');
     issuesUrl.searchParams.set('filter', `volume:${matchedVolume.id}`);
+    issuesUrl.searchParams.set('field_list', 'id,name,issue_number,cover_date,image,volume,person_credits,description');
     issuesUrl.searchParams.set('sort', 'issue_number:asc');
     issuesUrl.searchParams.set('limit', '100');
 
@@ -135,6 +137,8 @@ serve(async (req) => {
 
     const issuesData = await issuesResponse.json();
     const issues: ComicVineIssue[] = issuesData.results || [];
+    
+    console.log('Issues received:', issues.length, 'First issue has person_credits:', !!issues[0]?.person_credits);
 
     // Find the matching issue number
     let matchedIssue: ComicVineIssue | null = null;
@@ -163,14 +167,31 @@ serve(async (req) => {
     let writer = '';
     let artist = '';
     let coverArtist = '';
+    let inker = '';
+    let colorist = '';
+    let letterer = '';
     
-    if (matchedIssue.person_credits) {
+    console.log('Matched issue person_credits:', JSON.stringify(matchedIssue.person_credits?.slice(0, 5)));
+    
+    if (matchedIssue.person_credits && matchedIssue.person_credits.length > 0) {
       matchedIssue.person_credits.forEach(credit => {
         const role = credit.role.toLowerCase();
         if (role.includes('writer') && !writer) writer = credit.name;
-        if ((role.includes('artist') || role.includes('pencil')) && !artist) artist = credit.name;
+        if ((role.includes('artist') || role.includes('pencil')) && !role.includes('cover') && !artist) artist = credit.name;
         if (role.includes('cover') && !coverArtist) coverArtist = credit.name;
+        if (role.includes('inker') && !inker) inker = credit.name;
+        if (role.includes('colorist') && !colorist) colorist = credit.name;
+        if (role.includes('letterer') && !letterer) letterer = credit.name;
       });
+      console.log('Extracted creators - Writer:', writer, 'Artist:', artist, 'Cover:', coverArtist);
+    } else {
+      console.log('No person_credits found in issue');
+    }
+
+    // Strip HTML from description
+    let description = matchedIssue.description || '';
+    if (description) {
+      description = description.replace(/<[^>]*>/g, '').substring(0, 500);
     }
 
     const result = {
@@ -184,11 +205,18 @@ serve(async (req) => {
       writer,
       artist,
       coverArtist,
+      inker,
+      colorist,
+      letterer,
+      description,
       volumeId: matchedVolume.id,
       volumeStartYear: matchedVolume.start_year,
     };
 
-    console.log('ComicVine result:', result.title, '#' + result.issueNumber, result.coverImageUrl ? 'with cover' : 'no cover');
+    console.log('ComicVine result:', result.title, '#' + result.issueNumber, 
+      'Writer:', result.writer || 'none', 
+      'Artist:', result.artist || 'none',
+      result.coverImageUrl ? 'with cover' : 'no cover');
 
     return new Response(
       JSON.stringify(result),

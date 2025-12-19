@@ -4,12 +4,10 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { Calendar } from '@/components/ui/calendar';
-import { CalendarIcon, PenTool } from 'lucide-react';
+import { PenTool } from 'lucide-react';
 import { format } from 'date-fns';
-import { cn } from '@/lib/utils';
 import { Comic, SignatureType } from '@/types/comic';
+import { DateInput } from '@/components/ui/DateInput';
 
 interface MarkAsSignedDialogProps {
   comic: Comic;
@@ -27,8 +25,8 @@ const SIGNATURE_TYPES: { value: SignatureType; label: string; description: strin
 
 export function MarkAsSignedDialog({ comic, open, onOpenChange, onSave }: MarkAsSignedDialogProps) {
   const [signedBy, setSignedBy] = useState(comic.signedBy || '');
-  const [signedDate, setSignedDate] = useState<Date | undefined>(
-    comic.signedDate ? new Date(comic.signedDate) : undefined
+  const [signedDate, setSignedDate] = useState(
+    comic.signedDate || format(new Date(), 'yyyy-MM-dd')
   );
   const [signatureType, setSignatureType] = useState<SignatureType>(
     comic.signatureType || 'witnessed'
@@ -45,7 +43,7 @@ export function MarkAsSignedDialog({ comic, open, onOpenChange, onSave }: MarkAs
     if (!signedBy.trim()) return;
     onSave(
       signedBy.trim(),
-      signedDate ? format(signedDate, 'yyyy-MM-dd') : format(new Date(), 'yyyy-MM-dd'),
+      signedDate,
       signatureType
     );
     onOpenChange(false);
@@ -88,42 +86,21 @@ export function MarkAsSignedDialog({ comic, open, onOpenChange, onSave }: MarkAs
             )}
           </div>
 
-          {/* Signature Date */}
-          <div className="space-y-2">
-            <Label>Signature Date</Label>
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button
-                  variant="outline"
-                  className={cn(
-                    "w-full justify-start text-left font-normal",
-                    !signedDate && "text-muted-foreground"
-                  )}
-                >
-                  <CalendarIcon className="mr-2 h-4 w-4" />
-                  {signedDate ? format(signedDate, "PPP") : "Select date"}
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-auto p-0" align="start">
-                <Calendar
-                  mode="single"
-                  selected={signedDate}
-                  onSelect={setSignedDate}
-                  initialFocus
-                  className="pointer-events-auto"
-                />
-              </PopoverContent>
-            </Popover>
-          </div>
+          {/* Signature Date - Using new DateInput with dropdowns */}
+          <DateInput
+            label="Signature Date"
+            value={signedDate}
+            onChange={setSignedDate}
+          />
 
           {/* Signature Type */}
           <div className="space-y-2">
             <Label>Signature Type</Label>
             <Select value={signatureType} onValueChange={(v) => setSignatureType(v as SignatureType)}>
-              <SelectTrigger>
+              <SelectTrigger className="bg-background">
                 <SelectValue />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent className="bg-popover">
                 {SIGNATURE_TYPES.map((type) => (
                   <SelectItem key={type.value} value={type.value}>
                     <div>
