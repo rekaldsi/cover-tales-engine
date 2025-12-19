@@ -60,8 +60,8 @@ export function ContinuousHunting({ ownedComics, onExit }: ContinuousHuntingProp
     setProcessing,
     resetStability,
   } = useContinuousScan({
-    stabilizationMs: 1200,
-    changeThreshold: 0.12,
+    stabilizationMs: 500,
+    changeThreshold: 0.25,
   });
 
   // Check if comic is in collection
@@ -261,12 +261,12 @@ export function ContinuousHunting({ ownedComics, onExit }: ContinuousHuntingProp
   }
 
   return (
-    <div className="relative">
-      {/* Camera viewport */}
-      <div className="relative aspect-[4/3] bg-black rounded-lg overflow-hidden">
+    <div className="relative flex flex-col h-full">
+      {/* Camera viewport - takes all available space */}
+      <div className="relative flex-1 min-h-0 bg-black rounded-lg overflow-hidden">
         <video
           ref={videoRef}
-          className="w-full h-full object-cover"
+          className="absolute inset-0 w-full h-full object-cover"
           playsInline
           muted
           autoPlay

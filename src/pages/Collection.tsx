@@ -193,11 +193,11 @@ export default function Collection() {
           </p>
         </div>
       ) : viewMode === 'grid' ? (
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 w-full">
           {filteredAndSortedComics.map((comic, index) => (
             <div 
               key={comic.id}
-              className="animate-fade-in"
+              className="animate-fade-in w-full min-w-0"
               style={{ animationDelay: `${Math.min(index * 0.05, 0.5)}s` }}
             >
               <ComicCard comic={comic} onClick={() => setSelectedComic(comic)} />

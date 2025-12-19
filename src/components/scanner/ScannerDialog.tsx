@@ -402,8 +402,8 @@ export function ScannerDialog({ open, onOpenChange, onAdd }: ScannerDialogProps)
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
+      <DialogContent fullScreenMobile className="max-w-lg max-h-[90vh] overflow-hidden flex flex-col p-0">
+        <DialogHeader className="p-4 pb-2 shrink-0 pt-safe">
           <DialogTitle className="flex items-center gap-2">
             {step !== 'scan' && (
               <Button
@@ -421,14 +421,15 @@ export function ScannerDialog({ open, onOpenChange, onAdd }: ScannerDialogProps)
             {step === 'details' && 'Comic Details'}
           </DialogTitle>
         </DialogHeader>
-
-        {/* Auth Warning */}
-        {!user && (
-          <div className="mx-4 mb-4 p-3 bg-yellow-500/10 border border-yellow-500/30 rounded-lg flex items-center gap-2 text-sm text-yellow-400">
-            <LogIn className="w-4 h-4 shrink-0" />
-            <span>Log in to save comics to your collection</span>
-          </div>
-        )}
+        
+        <div className="flex-1 overflow-y-auto px-4 pb-4 pb-safe space-y-4">
+          {/* Auth Warning */}
+          {!user && (
+            <div className="p-3 bg-yellow-500/10 border border-yellow-500/30 rounded-lg flex items-center gap-2 text-sm text-yellow-400">
+              <LogIn className="w-4 h-4 shrink-0" />
+              <span>Log in to save comics to your collection</span>
+            </div>
+          )}
 
         {/* Step 1: Scan/Search */}
         {step === 'scan' && (
@@ -826,6 +827,7 @@ export function ScannerDialog({ open, onOpenChange, onAdd }: ScannerDialogProps)
             </Button>
           </div>
         )}
+        </div>
       </DialogContent>
     </Dialog>
   );

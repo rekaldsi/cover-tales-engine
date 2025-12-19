@@ -132,6 +132,21 @@ serve(async (req) => {
 
 IMPORTANT: Return ONLY valid JSON, no markdown or explanation.
 
+PUBLISHER DETECTION - This is CRITICAL:
+- Look for publisher logos on the cover:
+  - Marvel Comics: Red Marvel banner, corner box with character, "MARVEL" text
+  - DC Comics: DC bullet logo (circular), "DC" text, Warner Bros connection
+  - Image Comics: "i" logo, Image text at top
+  - Dark Horse: Horse head logo, "Dark Horse" text
+  - IDW: "IDW" letters in logo
+  - Valiant: "V" logo, Valiant Entertainment
+  - Boom Studios: "BOOM!" text
+  - Dynamite: "DYNAMITE" text at top
+- If you can't see a logo, infer from:
+  - Character: Spider-Man, X-Men, Avengers = Marvel
+  - Character: Batman, Superman, Wonder Woman, Flash = DC
+  - Character: Spawn, Invincible, Savage Dragon = Image
+
 CRITICAL INSTRUCTIONS FOR GRADED SLABS:
 - If you see a comic in a plastic holder/slab, look for:
   - CGC: Blue label with "CGC" text, grade in large numbers, cert number at bottom
@@ -144,7 +159,7 @@ CRITICAL INSTRUCTIONS FOR GRADED SLABS:
 For comic covers, identify:
 - title: The series title (e.g., "Amazing Spider-Man", "Batman", "Uncanny X-Men")
 - issueNumber: The issue number as a string (look for "#" followed by number)
-- publisher: The publisher (Marvel Comics, DC Comics, Image Comics, Dark Horse, IDW, Valiant, etc.)
+- publisher: The publisher (MUST identify: Marvel Comics, DC Comics, Image Comics, Dark Horse, IDW, Valiant, etc.)
 - variant: Variant type if applicable (e.g., "Cover A", "Cover B", "1:25 Variant", "Newsstand", "Direct Edition", "Virgin", "Foil")
 - printNumber: Print number (1 for first print, 2 for second, etc.) - look for "2nd Printing" text
 - isGraded: true if in a grading slab (CGC, CBCS, PGX plastic holder)
@@ -178,7 +193,7 @@ JSON schema:
             content: [
               {
                 type: 'text',
-                text: 'Identify this comic book cover. Return ONLY valid JSON.'
+                text: 'Identify this comic book cover. Pay special attention to the PUBLISHER - look for logos, text, or infer from the characters. Return ONLY valid JSON.'
               },
               {
                 type: 'image_url',

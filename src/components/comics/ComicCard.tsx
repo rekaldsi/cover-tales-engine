@@ -19,7 +19,7 @@ export function ComicCard({ comic, onClick }: ComicCardProps) {
   return (
     <article 
       onClick={onClick}
-      className="comic-card cursor-pointer min-h-[44px] active:opacity-90 transition-opacity"
+      className="comic-card cursor-pointer min-h-[44px] active:opacity-90 transition-opacity w-full max-w-full overflow-hidden"
     >
       {/* Cover Image */}
       <div className="relative overflow-hidden bg-secondary/30 p-1.5">
