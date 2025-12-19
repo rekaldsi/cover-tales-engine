@@ -29,3 +29,18 @@ verify_jwt = false
 
 [functions.fetch-cpg-value]
 verify_jwt = false
+
+[functions.fetch-gpa-value]
+verify_jwt = false
+
+[functions.fetch-covrprice-value]
+verify_jwt = false
+
+[functions.fetch-overstreet-value]
+verify_jwt = false
+
+[functions.fetch-comicvine-data]
+verify_jwt = false
+
+[functions.aggregate-comic-data]
+verify_jwt = false

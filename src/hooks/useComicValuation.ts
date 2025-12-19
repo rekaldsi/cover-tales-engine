@@ -1,6 +1,7 @@
 import { useState, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import type { ValueSource, DataDiscrepancy } from '@/types/comic';
 
 interface FMVData {
   raw?: number;
@@ -15,7 +16,7 @@ interface FMVData {
 
 interface ValuationResult {
   success: boolean;
-  source: 'gocollect' | 'ebay_estimate' | 'manual' | 'unavailable';
+  source: 'gocollect' | 'ebay_estimate' | 'aggregated' | 'manual' | 'unavailable';
   fmv: FMVData | null;
   trend?: {
     direction: 'up' | 'down' | 'stable';
@@ -41,24 +42,39 @@ interface ValuationResult {
       itemUrl: string;
     }>;
   };
+  // Multi-source aggregated data
+  aggregatedData?: {
+    recommendedValue: number;
+    valueRange: { low: number; high: number };
+    confidence: 'high' | 'medium' | 'low';
+    sources: ValueSource[];
+    fmvByGrade: Record<string, {
+      recommended: number;
+      range: { low: number; high: number };
+      sources: { source: string; value: number }[];
+    }>;
+    discrepancies?: DataDiscrepancy[];
+    verifiedAt: string;
+  };
   error?: string;
 }
 
 interface UseComicValuationOptions {
   autoRetry?: boolean;
   cacheResults?: boolean;
+  useAggregator?: boolean;
 }
 
 // Simple in-memory cache for valuation results
 const valuationCache = new Map<string, { data: ValuationResult; timestamp: number }>();
 const CACHE_TTL = 1000 * 60 * 60; // 1 hour cache
 
-function getCacheKey(title: string, issueNumber: string, publisher?: string): string {
-  return `${title}:${issueNumber}:${publisher || ''}`.toLowerCase();
+function getCacheKey(title: string, issueNumber: string, publisher?: string, aggregated?: boolean): string {
+  return `${title}:${issueNumber}:${publisher || ''}:${aggregated ? 'agg' : 'simple'}`.toLowerCase();
 }
 
 export function useComicValuation(options: UseComicValuationOptions = {}) {
-  const { cacheResults = true } = options;
+  const { cacheResults = true, useAggregator = false } = options;
   const [isLoading, setIsLoading] = useState(false);
   const [lastResult, setLastResult] = useState<ValuationResult | null>(null);
   const { toast } = useToast();
@@ -71,7 +87,7 @@ export function useComicValuation(options: UseComicValuationOptions = {}) {
     certNumber?: string,
     gradeStatus?: string
   ): Promise<ValuationResult> => {
-    const cacheKey = getCacheKey(title, issueNumber, publisher);
+    const cacheKey = getCacheKey(title, issueNumber, publisher, useAggregator);
     
     // Check cache first
     if (cacheResults) {
@@ -85,6 +101,44 @@ export function useComicValuation(options: UseComicValuationOptions = {}) {
     setIsLoading(true);
 
     try {
+      // If using aggregator, fetch from all sources
+      if (useAggregator) {
+        console.log('Using multi-source aggregator...');
+        const { data: aggData, error: aggError } = await supabase.functions.invoke('aggregate-comic-data', {
+          body: { 
+            title, 
+            issue_number: issueNumber, 
+            publisher, 
+            grade, 
+            cert_number: certNumber,
+            grade_status: gradeStatus,
+          }
+        });
+
+        if (!aggError && aggData?.success) {
+          const result: ValuationResult = {
+            success: true,
+            source: 'aggregated',
+            fmv: { current: aggData.recommendedValue },
+            aggregatedData: {
+              recommendedValue: aggData.recommendedValue,
+              valueRange: aggData.valueRange,
+              confidence: aggData.confidence,
+              sources: aggData.sources,
+              fmvByGrade: aggData.fmvByGrade,
+              discrepancies: aggData.discrepancies,
+              verifiedAt: aggData.verifiedAt,
+            },
+          };
+
+          if (cacheResults) {
+            valuationCache.set(cacheKey, { data: result, timestamp: Date.now() });
+          }
+          setLastResult(result);
+          return result;
+        }
+      }
+
       // Tier 1: Try GoCollect first
       console.log('Tier 1: Trying GoCollect...');
       const { data: goCollectData, error: goCollectError } = await supabase.functions.invoke('fetch-gocollect-value', {
@@ -216,6 +270,8 @@ export function useComicValuation(options: UseComicValuationOptions = {}) {
         return 'GoCollect FMV';
       case 'ebay_estimate':
         return 'eBay Estimate';
+      case 'aggregated':
+        return 'Multi-Source Verified';
       case 'manual':
         return 'Manual Entry';
       default:
