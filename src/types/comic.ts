@@ -95,6 +95,12 @@ export interface Comic {
   graderNotes?: string;
   gradedDate?: string;
   innerWellNotes?: string;
+  
+  // AI condition analysis (for raw comics)
+  estimatedRawGrade?: string;
+  conditionNotes?: string;
+  visibleDefects?: string[];
+  conditionConfidence?: 'high' | 'medium' | 'low';
 }
 
 export interface CollectionStats {

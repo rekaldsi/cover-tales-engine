@@ -46,6 +46,11 @@ function mapDbToComic(row: any): Comic {
     graderNotes: row.grader_notes,
     gradedDate: row.graded_date,
     innerWellNotes: row.inner_well_notes,
+    // AI condition analysis
+    estimatedRawGrade: row.estimated_raw_grade,
+    conditionNotes: row.condition_notes,
+    visibleDefects: row.visible_defects,
+    conditionConfidence: row.condition_confidence,
   };
 }
 
@@ -88,6 +93,11 @@ function mapComicToDb(comic: Omit<Comic, 'id' | 'dateAdded'>, userId: string) {
     grader_notes: comic.graderNotes,
     graded_date: comic.gradedDate,
     inner_well_notes: comic.innerWellNotes,
+    // AI condition analysis
+    estimated_raw_grade: comic.estimatedRawGrade,
+    condition_notes: comic.conditionNotes,
+    visible_defects: comic.visibleDefects,
+    condition_confidence: comic.conditionConfidence,
   };
 }
 
@@ -129,6 +139,7 @@ export function useComicCollection() {
   }, [fetchComics]);
 
   // Backfill values for comics that don't have a currentValue
+  // Uses tiered fallback: GoCollect -> eBay -> ComicsPriceGuide
   const backfillValues = useCallback(async (comicsToUpdate: Comic[]) => {
     const comicsWithoutValue = comicsToUpdate.filter(c => c.currentValue === undefined || c.currentValue === null);
     
@@ -138,23 +149,73 @@ export function useComicCollection() {
     
     for (const comic of comicsWithoutValue) {
       try {
-        const { data: valueData } = await supabase.functions.invoke('fetch-gocollect-value', {
+        // Use estimated raw grade or default to 5.0 (VG/FN)
+        const gradeForPricing = comic.gradeStatus === 'raw' 
+          ? (comic.estimatedRawGrade || '5.0') 
+          : comic.grade;
+        
+        let rawValue: number | null = null;
+        let valueSource = '';
+        
+        // Tier 1: Try GoCollect
+        console.log(`[Backfill] Trying GoCollect for ${comic.title} #${comic.issueNumber}`);
+        const { data: goCollectData } = await supabase.functions.invoke('fetch-gocollect-value', {
           body: {
             title: comic.title,
             issue_number: comic.issueNumber,
             publisher: comic.publisher,
+            grade: gradeForPricing,
           }
         });
 
-        if (valueData?.success && valueData.fmv) {
-          const rawValue = valueData.fmv.raw || valueData.fmv['8.0'] || valueData.fmv['9.0'];
-          if (rawValue) {
-            // Update in database
-            await supabase.from('comics').update({ current_value: rawValue }).eq('id', comic.id);
-            // Update local state
-            setComics(prev => prev.map(c => c.id === comic.id ? { ...c, currentValue: rawValue } : c));
-            console.log(`Backfilled value for ${comic.title} #${comic.issueNumber}: $${rawValue}`);
+        if (goCollectData?.success && goCollectData.fmv) {
+          rawValue = goCollectData.fmv.raw || goCollectData.fmv[gradeForPricing] || goCollectData.fmv['8.0'] || goCollectData.fmv['9.0'];
+          valueSource = 'gocollect';
+        }
+        
+        // Tier 2: Try eBay if GoCollect failed
+        if (!rawValue) {
+          console.log(`[Backfill] Trying eBay for ${comic.title} #${comic.issueNumber}`);
+          const { data: ebayData } = await supabase.functions.invoke('fetch-ebay-prices', {
+            body: {
+              title: comic.title,
+              issueNumber: comic.issueNumber,
+              publisher: comic.publisher,
+              grade: gradeForPricing,
+              gradeStatus: comic.gradeStatus,
+            }
+          });
+          
+          if (ebayData?.success && ebayData.listingCount > 0) {
+            rawValue = ebayData.estimatedSoldPrice || ebayData.averageAskingPrice;
+            valueSource = 'ebay';
           }
+        }
+        
+        // Tier 3: Try ComicsPriceGuide if others failed
+        if (!rawValue) {
+          console.log(`[Backfill] Trying CPG for ${comic.title} #${comic.issueNumber}`);
+          const { data: cpgData } = await supabase.functions.invoke('fetch-cpg-value', {
+            body: {
+              title: comic.title,
+              issueNumber: comic.issueNumber,
+              publisher: comic.publisher,
+              grade: gradeForPricing,
+            }
+          });
+          
+          if (cpgData?.success && cpgData.fmv?.current) {
+            rawValue = cpgData.fmv.current;
+            valueSource = 'cpg';
+          }
+        }
+        
+        if (rawValue) {
+          // Update in database
+          await supabase.from('comics').update({ current_value: rawValue }).eq('id', comic.id);
+          // Update local state
+          setComics(prev => prev.map(c => c.id === comic.id ? { ...c, currentValue: rawValue! } : c));
+          console.log(`Backfilled value for ${comic.title} #${comic.issueNumber}: $${rawValue} (source: ${valueSource})`);
         }
       } catch (err) {
         console.log(`Failed to backfill value for ${comic.title}:`, err);
@@ -165,7 +226,7 @@ export function useComicCollection() {
     }
   }, []);
 
-  // Manual refresh all values
+  // Manual refresh all values with tiered fallback
   const refreshAllValues = useCallback(async () => {
     if (!user || comics.length === 0) return;
     
@@ -179,24 +240,71 @@ export function useComicCollection() {
       setRefreshProgress({ current: i + 1, total: comics.length });
       
       try {
-        const { data: valueData } = await supabase.functions.invoke('fetch-gocollect-value', {
+        // Use estimated raw grade or default to 5.0 (VG/FN)
+        const gradeForPricing = comic.gradeStatus === 'raw' 
+          ? (comic.estimatedRawGrade || '5.0') 
+          : comic.grade;
+        
+        let rawValue: number | null = null;
+        let valueSource = '';
+        
+        // Tier 1: Try GoCollect
+        const { data: goCollectData } = await supabase.functions.invoke('fetch-gocollect-value', {
           body: {
             title: comic.title,
             issue_number: comic.issueNumber,
             publisher: comic.publisher,
+            grade: gradeForPricing,
           }
         });
 
-        if (valueData?.success && valueData.fmv) {
-          const rawValue = valueData.fmv.raw || valueData.fmv['8.0'] || valueData.fmv['9.0'];
-          if (rawValue && rawValue !== comic.currentValue) {
-            // Update in database
-            await supabase.from('comics').update({ current_value: rawValue }).eq('id', comic.id);
-            // Update local state
-            setComics(prev => prev.map(c => c.id === comic.id ? { ...c, currentValue: rawValue } : c));
-            updatedCount++;
-            console.log(`Updated value for ${comic.title} #${comic.issueNumber}: $${rawValue}`);
+        if (goCollectData?.success && goCollectData.fmv) {
+          rawValue = goCollectData.fmv.raw || goCollectData.fmv[gradeForPricing] || goCollectData.fmv['8.0'] || goCollectData.fmv['9.0'];
+          valueSource = 'gocollect';
+        }
+        
+        // Tier 2: Try eBay if GoCollect failed
+        if (!rawValue) {
+          const { data: ebayData } = await supabase.functions.invoke('fetch-ebay-prices', {
+            body: {
+              title: comic.title,
+              issueNumber: comic.issueNumber,
+              publisher: comic.publisher,
+              grade: gradeForPricing,
+              gradeStatus: comic.gradeStatus,
+            }
+          });
+          
+          if (ebayData?.success && ebayData.listingCount > 0) {
+            rawValue = ebayData.estimatedSoldPrice || ebayData.averageAskingPrice;
+            valueSource = 'ebay';
           }
+        }
+        
+        // Tier 3: Try ComicsPriceGuide if others failed
+        if (!rawValue) {
+          const { data: cpgData } = await supabase.functions.invoke('fetch-cpg-value', {
+            body: {
+              title: comic.title,
+              issueNumber: comic.issueNumber,
+              publisher: comic.publisher,
+              grade: gradeForPricing,
+            }
+          });
+          
+          if (cpgData?.success && cpgData.fmv?.current) {
+            rawValue = cpgData.fmv.current;
+            valueSource = 'cpg';
+          }
+        }
+
+        if (rawValue && rawValue !== comic.currentValue) {
+          // Update in database
+          await supabase.from('comics').update({ current_value: rawValue }).eq('id', comic.id);
+          // Update local state
+          setComics(prev => prev.map(c => c.id === comic.id ? { ...c, currentValue: rawValue! } : c));
+          updatedCount++;
+          console.log(`Updated value for ${comic.title} #${comic.issueNumber}: $${rawValue} (source: ${valueSource})`);
         }
       } catch (err) {
         console.log(`Failed to refresh value for ${comic.title}:`, err);
@@ -309,29 +417,75 @@ export function useComicCollection() {
       throw new Error('Authentication required to save comics');
     }
 
-    // Auto-fetch value if not already set
+    // Auto-fetch value if not already set - using tiered fallback
     let comicWithValue = { ...comic };
     if (!comic.currentValue && comic.title) {
       try {
-        const { data: valueData } = await supabase.functions.invoke('fetch-gocollect-value', {
+        // Use estimated raw grade or default to 5.0 (VG/FN)
+        const gradeForPricing = comic.gradeStatus === 'raw' 
+          ? (comic.estimatedRawGrade || '5.0') 
+          : comic.grade;
+        
+        let rawValue: number | null = null;
+        
+        // Tier 1: Try GoCollect
+        console.log(`[AddComic] Trying GoCollect for ${comic.title} #${comic.issueNumber}`);
+        const { data: goCollectData } = await supabase.functions.invoke('fetch-gocollect-value', {
           body: {
             title: comic.title,
             issue_number: comic.issueNumber,
             publisher: comic.publisher,
+            grade: gradeForPricing,
           }
         });
 
-        if (valueData?.success && valueData.fmv) {
-          // Use raw value for ungraded, or specific grade if available
-          const rawValue = valueData.fmv.raw || valueData.fmv['8.0'] || valueData.fmv['9.0'];
-          if (rawValue) {
-            comicWithValue.currentValue = rawValue;
-            console.log('Auto-fetched value for', comic.title, ':', rawValue, 'from FMV data:', valueData.fmv);
-          } else {
-            console.log('No raw value found in FMV data:', valueData.fmv);
+        if (goCollectData?.success && goCollectData.fmv) {
+          rawValue = goCollectData.fmv.raw || goCollectData.fmv[gradeForPricing] || goCollectData.fmv['8.0'] || goCollectData.fmv['9.0'];
+          if (rawValue) console.log(`[AddComic] GoCollect value: $${rawValue}`);
+        }
+        
+        // Tier 2: Try eBay if GoCollect failed
+        if (!rawValue) {
+          console.log(`[AddComic] Trying eBay for ${comic.title} #${comic.issueNumber}`);
+          const { data: ebayData } = await supabase.functions.invoke('fetch-ebay-prices', {
+            body: {
+              title: comic.title,
+              issueNumber: comic.issueNumber,
+              publisher: comic.publisher,
+              grade: gradeForPricing,
+              gradeStatus: comic.gradeStatus,
+            }
+          });
+          
+          if (ebayData?.success && ebayData.listingCount > 0) {
+            rawValue = ebayData.estimatedSoldPrice || ebayData.averageAskingPrice;
+            if (rawValue) console.log(`[AddComic] eBay value: $${rawValue}`);
           }
+        }
+        
+        // Tier 3: Try ComicsPriceGuide if others failed
+        if (!rawValue) {
+          console.log(`[AddComic] Trying CPG for ${comic.title} #${comic.issueNumber}`);
+          const { data: cpgData } = await supabase.functions.invoke('fetch-cpg-value', {
+            body: {
+              title: comic.title,
+              issueNumber: comic.issueNumber,
+              publisher: comic.publisher,
+              grade: gradeForPricing,
+            }
+          });
+          
+          if (cpgData?.success && cpgData.fmv?.current) {
+            rawValue = cpgData.fmv.current;
+            if (rawValue) console.log(`[AddComic] CPG value: $${rawValue}`);
+          }
+        }
+        
+        if (rawValue) {
+          comicWithValue.currentValue = rawValue;
+          console.log('Auto-fetched value for', comic.title, ':', rawValue);
         } else {
-          console.log('Value fetch response:', valueData);
+          console.log('No value found from any source');
         }
       } catch (err) {
         console.log('Value lookup failed:', err);

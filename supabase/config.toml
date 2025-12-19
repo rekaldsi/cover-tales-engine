@@ -26,3 +26,6 @@ verify_jwt = false
 
 [functions.fetch-cert-details]
 verify_jwt = false
+
+[functions.fetch-cpg-value]
+verify_jwt = false
