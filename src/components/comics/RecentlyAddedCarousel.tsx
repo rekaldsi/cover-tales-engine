@@ -54,14 +54,14 @@ export function RecentlyAddedCarousel({ comics, onComicClick }: RecentlyAddedCar
       {/* Scrollable Container */}
       <div
         ref={scrollRef}
-        className="flex gap-4 overflow-x-auto scrollbar-hide px-10 py-2"
+        className="flex gap-3 sm:gap-4 overflow-x-auto scrollbar-hide px-8 sm:px-10 py-2"
         style={{ scrollSnapType: 'x mandatory' }}
       >
         {comics.map((comic) => (
           <div
             key={comic.id}
-            className="flex-shrink-0 w-[200px]"
-            style={{ scrollSnapAlign: 'start' }}
+            className="flex-shrink-0 w-[calc(50vw-2.5rem)] sm:w-[200px]"
+            style={{ scrollSnapAlign: 'center' }}
           >
             <ComicCard comic={comic} onClick={() => onComicClick(comic)} />
           </div>

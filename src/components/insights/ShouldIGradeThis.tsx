@@ -1,5 +1,7 @@
+import { useState, useEffect } from 'react';
 import { Comic } from '@/types/comic';
-import { Award, TrendingUp, AlertTriangle, CheckCircle2, XCircle } from 'lucide-react';
+import { Award, TrendingUp, AlertTriangle, CheckCircle2, XCircle, Loader2 } from 'lucide-react';
+import { useComicValuation } from '@/hooks/useComicValuation';
 
 interface ShouldIGradeThisProps {
   comic: Comic;
@@ -8,10 +10,46 @@ interface ShouldIGradeThisProps {
 const GRADING_COST = 75;
 
 export function ShouldIGradeThis({ comic }: ShouldIGradeThisProps) {
+  const { fetchValuation, isLoading } = useComicValuation({ useAggregator: true });
+  const [gradedValues, setGradedValues] = useState<{ '9.8'?: number; '9.6'?: number; '9.4'?: number } | null>(null);
+  const [dataSource, setDataSource] = useState<'estimate' | 'market'>('estimate');
+
   // Don't show for already graded comics
   if (comic.gradeStatus !== 'raw') {
     return null;
   }
+
+  // Fetch real graded values from market data
+  useEffect(() => {
+    const fetchGradedPrices = async () => {
+      if (!comic.title || !comic.issueNumber) return;
+      
+      try {
+        // Try to fetch CGC graded prices
+        const result = await fetchValuation(
+          comic.title,
+          comic.issueNumber,
+          comic.publisher,
+          9.8,
+          undefined,
+          'cgc'
+        );
+        
+        if (result.success && result.fmv) {
+          setGradedValues({
+            '9.8': result.fmv['9.8'],
+            '9.6': result.fmv['9.6'],
+            '9.4': result.fmv['9.4'],
+          });
+          setDataSource('market');
+        }
+      } catch (err) {
+        // Silent fail - will use estimates
+      }
+    };
+    
+    fetchGradedPrices();
+  }, [comic.title, comic.issueNumber, comic.publisher]);
 
   const currentValue = comic.currentValue || 0;
   
@@ -61,7 +99,7 @@ export function ShouldIGradeThis({ comic }: ShouldIGradeThisProps) {
     factors.push({ label: `Signature adds ${Math.round((signaturePremium - 1) * 100)}% premium`, impact: 'positive' });
   }
 
-  // Estimate graded values with signature premium
+  // Use real market data if available, otherwise use estimates with signature premium
   const baseMultiplier98 = comic.isKeyIssue ? 3 : 2.2;
   const baseMultiplier96 = comic.isKeyIssue ? 2.2 : 1.7;
   const baseMultiplier94 = comic.isKeyIssue ? 1.6 : 1.3;
@@ -70,9 +108,10 @@ export function ShouldIGradeThis({ comic }: ShouldIGradeThisProps) {
   const multiplier96 = baseMultiplier96 * signaturePremium;
   const multiplier94 = baseMultiplier94 * signaturePremium;
   
-  const est98 = currentValue * multiplier98;
-  const est96 = currentValue * multiplier96;
-  const est94 = currentValue * multiplier94;
+  // Prefer real market data over estimates
+  const est98 = gradedValues?.['9.8'] || (currentValue * multiplier98);
+  const est96 = gradedValues?.['9.6'] || (currentValue * multiplier96);
+  const est94 = gradedValues?.['9.4'] || (currentValue * multiplier94);
   
   const profit98 = est98 - currentValue - GRADING_COST;
   
@@ -160,7 +199,16 @@ export function ShouldIGradeThis({ comic }: ShouldIGradeThisProps) {
       )}
       
       <p className="text-[10px] text-muted-foreground mt-3">
-        *Estimates based on market averages for similar comics
+        {isLoading ? (
+          <span className="flex items-center gap-1">
+            <Loader2 className="h-3 w-3 animate-spin" />
+            Fetching market prices...
+          </span>
+        ) : dataSource === 'market' ? (
+          '*Based on recent eBay/GoCollect sales data'
+        ) : (
+          '*Estimates based on market averages for similar comics'
+        )}
       </p>
     </div>
   );

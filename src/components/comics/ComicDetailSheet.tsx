@@ -216,6 +216,31 @@ export function ComicDetailSheet({ comic, open, onOpenChange, onDelete, onUpdate
             </div>
           )}
 
+          {/* Grading Status - Prominent Display */}
+          <div className="p-4 rounded-lg bg-secondary/50 border border-border mb-6">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className={`w-3 h-3 rounded-full ${
+                  displayComic.gradeStatus === 'cgc' ? 'bg-blue-500' :
+                  displayComic.gradeStatus === 'cbcs' ? 'bg-red-500' :
+                  displayComic.gradeStatus === 'pgx' ? 'bg-amber-500' :
+                  'bg-muted-foreground'
+                }`} />
+                <div>
+                  <p className="text-sm font-semibold uppercase tracking-wider">
+                    {displayComic.gradeStatus === 'raw' ? 'Raw / Ungraded' : displayComic.gradeStatus.toUpperCase()}
+                  </p>
+                  {displayComic.grade && displayComic.gradeStatus !== 'raw' && (
+                    <p className="text-lg font-display text-foreground">{displayComic.grade} {displayComic.labelType || 'Universal'}</p>
+                  )}
+                </div>
+              </div>
+              {displayComic.certNumber && (
+                <p className="text-xs text-muted-foreground">Cert #{displayComic.certNumber}</p>
+              )}
+            </div>
+          </div>
+
           {/* Signature Info - Updated for multiple signatures */}
           {displayComic.isSigned && signatures.length > 0 && (
             <div className="p-4 rounded-lg bg-comic-green/10 border border-comic-green/20 mb-6">
@@ -246,12 +271,13 @@ export function ComicDetailSheet({ comic, open, onOpenChange, onDelete, onUpdate
                     ))}
                   </div>
                 </div>
-                <div className="flex gap-2">
-                  <Button variant="ghost" size="sm" onClick={() => setSignDialogOpen(true)}>
-                    Edit
+                <div className="flex flex-col gap-2">
+                  <Button variant="outline" size="sm" onClick={() => setSignDialogOpen(true)}>
+                    <PenTool className="h-3 w-3 mr-1" />
+                    Add Signature
                   </Button>
-                  <Button variant="ghost" size="sm" onClick={handleRemoveSignature}>
-                    Remove
+                  <Button variant="ghost" size="sm" onClick={handleRemoveSignature} className="text-destructive">
+                    Remove All
                   </Button>
                 </div>
               </div>

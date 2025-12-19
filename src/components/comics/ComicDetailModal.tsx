@@ -258,27 +258,65 @@ export function ComicDetailModal({ comic, open, onOpenChange, onDelete, onUpdate
                     </div>
                   )}
 
-                  {/* Signature Info */}
-                  {displayComic.isSigned && (
-                    <div className="p-3 rounded-lg bg-comic-green/10 border border-comic-green/20">
-                      <div className="flex items-center justify-between">
+                  {/* Grading Status - Prominent Display */}
+                  <div className="p-3 rounded-lg bg-secondary/50 border border-border">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className={`w-3 h-3 rounded-full ${
+                          displayComic.gradeStatus === 'cgc' ? 'bg-blue-500' :
+                          displayComic.gradeStatus === 'cbcs' ? 'bg-red-500' :
+                          displayComic.gradeStatus === 'pgx' ? 'bg-amber-500' :
+                          'bg-muted-foreground'
+                        }`} />
                         <div>
-                          <p className="text-sm font-medium text-comic-green flex items-center gap-2">
-                            <CheckCircle2 className="h-4 w-4" />
-                            {getSignatureTypeLabel(displayComic.signatureType)}
+                          <p className="text-sm font-semibold uppercase tracking-wider">
+                            {displayComic.gradeStatus === 'raw' ? 'Raw / Ungraded' : displayComic.gradeStatus.toUpperCase()}
                           </p>
-                          <p className="text-sm text-foreground mt-1">
-                            Signed by: <span className="font-medium">{displayComic.signedBy}</span>
-                          </p>
-                          {displayComic.signedDate && (
-                            <p className="text-xs text-muted-foreground">
-                              {formatDate(displayComic.signedDate)}
-                            </p>
+                          {displayComic.grade && displayComic.gradeStatus !== 'raw' && (
+                            <p className="text-lg font-display text-foreground">{displayComic.grade} {displayComic.labelType || 'Universal'}</p>
                           )}
                         </div>
-                        <Button variant="ghost" size="sm" onClick={handleRemoveSignature}>
-                          Remove
-                        </Button>
+                      </div>
+                      {displayComic.certNumber && (
+                        <p className="text-xs text-muted-foreground">Cert #{displayComic.certNumber}</p>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Signature Info */}
+                  {displayComic.isSigned && signatures.length > 0 && (
+                    <div className="p-3 rounded-lg bg-comic-green/10 border border-comic-green/20">
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1">
+                          <p className="text-sm font-medium text-comic-green flex items-center gap-2 mb-2">
+                            <CheckCircle2 className="h-4 w-4" />
+                            {signatures.length === 1 
+                              ? getSignatureTypeLabel(signatures[0].signatureType)
+                              : `${signatures.length} Signatures`
+                            }
+                          </p>
+                          <div className="space-y-1">
+                            {signatures.map((sig, index) => (
+                              <div key={sig.id || index} className="text-sm">
+                                <span className="text-foreground font-medium">{sig.signedBy}</span>
+                                {signatures.length > 1 && (
+                                  <span className="text-muted-foreground text-xs ml-2">
+                                    ({getSignatureTypeLabel(sig.signatureType)})
+                                  </span>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                        <div className="flex flex-col gap-1">
+                          <Button variant="outline" size="sm" onClick={() => setSignDialogOpen(true)}>
+                            <PenTool className="h-3 w-3 mr-1" />
+                            Add More
+                          </Button>
+                          <Button variant="ghost" size="sm" onClick={handleRemoveSignature} className="text-destructive text-xs">
+                            Remove All
+                          </Button>
+                        </div>
                       </div>
                     </div>
                   )}

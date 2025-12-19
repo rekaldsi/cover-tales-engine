@@ -2,16 +2,14 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useComicCollection } from '@/hooks/useComicCollection';
 import { useBackgroundEnrichment } from '@/hooks/useBackgroundEnrichment';
-import { usePortfolioSnapshots } from '@/hooks/usePortfolioSnapshots';
 import { useAuth } from '@/contexts/AuthContext';
 import { StatCard } from '@/components/comics/StatCard';
 import { EraChart } from '@/components/comics/EraChart';
 import { RecentlyAddedCarousel } from '@/components/comics/RecentlyAddedCarousel';
-import { ComicDetailSheet } from '@/components/comics/ComicDetailSheet';
+import { ComicDetailModal } from '@/components/comics/ComicDetailModal';
 import { SigningRecommendations } from '@/components/signings/SigningRecommendations';
 import { GoCollectImport } from '@/components/import/GoCollectImport';
 import { EmptyCollectionState } from '@/components/dashboard/EmptyCollectionState';
-import { PortfolioChart } from '@/components/dashboard/PortfolioChart';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { Comic } from '@/types/comic';
@@ -31,7 +29,6 @@ interface DashboardProps {
 export default function Dashboard({ onAddClick, onHuntingClick }: DashboardProps) {
   const { comics, getStats, deleteComic, updateComic, refetch, refreshAllValues, refreshAllDetails, isRefreshingValues, refreshProgress } = useComicCollection();
   const { progress, isEnriching } = useBackgroundEnrichment(comics, updateComic);
-  const { snapshots, trend, saveSnapshot } = usePortfolioSnapshots();
   const { user } = useAuth();
   const navigate = useNavigate();
   const stats = getStats();
@@ -39,18 +36,6 @@ export default function Dashboard({ onAddClick, onHuntingClick }: DashboardProps
   
   const keyIssueCount = comics.filter(c => c.isKeyIssue).length;
   const gradedCount = comics.filter(c => c.gradeStatus !== 'raw').length;
-  
-  // Auto-save portfolio snapshot when stats change
-  useEffect(() => {
-    if (comics.length > 0 && stats.totalValue > 0) {
-      saveSnapshot({
-        totalValue: stats.totalValue,
-        comicCount: stats.totalComics,
-        gradedCount,
-        keyIssueCount,
-      });
-    }
-  }, [stats.totalValue, stats.totalComics, gradedCount, keyIssueCount, saveSnapshot, comics.length]);
   
   const formatCurrency = (value: number) => {
     if (value >= 1000) {
@@ -133,7 +118,6 @@ export default function Dashboard({ onAddClick, onHuntingClick }: DashboardProps
             subtitle="estimated total"
             icon={DollarSign}
             accentColor="gold"
-            trend={trend && trend.percentChange !== 0 ? { value: Math.abs(Math.round(trend.percentChange)), isPositive: trend.percentChange >= 0 } : undefined}
           />
         </div>
         <div className="animate-slide-up stagger-3">
@@ -242,15 +226,6 @@ export default function Dashboard({ onAddClick, onHuntingClick }: DashboardProps
         />
       </section>
 
-      {/* Portfolio Value Chart */}
-      <section className="animate-slide-up">
-        <PortfolioChart 
-          snapshots={snapshots} 
-          trend={trend} 
-          currentValue={stats.totalValue} 
-        />
-      </section>
-
       {/* Signing Recommendations */}
       <SigningRecommendations comics={comics} />
       
@@ -289,8 +264,8 @@ export default function Dashboard({ onAddClick, onHuntingClick }: DashboardProps
         </div>
       </section>
       
-      {/* Comic Detail Sheet */}
-      <ComicDetailSheet
+      {/* Comic Detail Modal - Unified with Collection page */}
+      <ComicDetailModal
         comic={selectedComic}
         open={!!selectedComic}
         onOpenChange={(open) => !open && setSelectedComic(null)}
