@@ -15,7 +15,7 @@ import { PortfolioChart } from '@/components/dashboard/PortfolioChart';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { Comic } from '@/types/comic';
-import { Library, DollarSign, Star, TrendingUp, Loader2, LogIn } from 'lucide-react';
+import { Library, DollarSign, Star, TrendingUp, Loader2, LogIn, RefreshCw } from 'lucide-react';
 
 interface DashboardProps {
   onAddClick?: () => void;
@@ -23,7 +23,7 @@ interface DashboardProps {
 }
 
 export default function Dashboard({ onAddClick, onHuntingClick }: DashboardProps) {
-  const { comics, getStats, deleteComic, updateComic, refetch } = useComicCollection();
+  const { comics, getStats, deleteComic, updateComic, refetch, refreshAllValues, isRefreshingValues, refreshProgress } = useComicCollection();
   const { progress, isEnriching } = useBackgroundEnrichment(comics, updateComic);
   const { snapshots, trend, saveSnapshot } = usePortfolioSnapshots();
   const { user } = useAuth();
@@ -123,7 +123,28 @@ export default function Dashboard({ onAddClick, onHuntingClick }: DashboardProps
               Your personal comic book collection manager. Track, organize, and discover the value of your collection.
             </p>
           </div>
-          <GoCollectImport onImportComplete={refetch} />
+          <div className="flex flex-col sm:flex-row gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={refreshAllValues}
+              disabled={isRefreshingValues}
+              className="min-h-[44px]"
+            >
+              {isRefreshingValues ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  {refreshProgress.current}/{refreshProgress.total}
+                </>
+              ) : (
+                <>
+                  <RefreshCw className="w-4 h-4 mr-2" />
+                  Refresh Values
+                </>
+              )}
+            </Button>
+            <GoCollectImport onImportComplete={refetch} />
+          </div>
         </div>
       </section>
       

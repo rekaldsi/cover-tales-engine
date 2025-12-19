@@ -96,6 +96,8 @@ export function useComicCollection() {
   const { toast } = useToast();
   const [comics, setComics] = useState<Comic[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isRefreshingValues, setIsRefreshingValues] = useState(false);
+  const [refreshProgress, setRefreshProgress] = useState({ current: 0, total: 0 });
 
   // Fetch comics from Supabase or localStorage
   const fetchComics = useCallback(async () => {
@@ -162,6 +164,54 @@ export function useComicCollection() {
       await new Promise(resolve => setTimeout(resolve, 500));
     }
   }, []);
+
+  // Manual refresh all values
+  const refreshAllValues = useCallback(async () => {
+    if (!user || comics.length === 0) return;
+    
+    setIsRefreshingValues(true);
+    setRefreshProgress({ current: 0, total: comics.length });
+    
+    let updatedCount = 0;
+    
+    for (let i = 0; i < comics.length; i++) {
+      const comic = comics[i];
+      setRefreshProgress({ current: i + 1, total: comics.length });
+      
+      try {
+        const { data: valueData } = await supabase.functions.invoke('fetch-gocollect-value', {
+          body: {
+            title: comic.title,
+            issueNumber: comic.issueNumber,
+            publisher: comic.publisher,
+          }
+        });
+
+        if (valueData?.success && valueData.fmv) {
+          const rawValue = valueData.fmv.raw || valueData.fmv['8.0'] || valueData.fmv['9.0'];
+          if (rawValue && rawValue !== comic.currentValue) {
+            // Update in database
+            await supabase.from('comics').update({ current_value: rawValue }).eq('id', comic.id);
+            // Update local state
+            setComics(prev => prev.map(c => c.id === comic.id ? { ...c, currentValue: rawValue } : c));
+            updatedCount++;
+            console.log(`Updated value for ${comic.title} #${comic.issueNumber}: $${rawValue}`);
+          }
+        }
+      } catch (err) {
+        console.log(`Failed to refresh value for ${comic.title}:`, err);
+      }
+      
+      // Small delay to avoid rate limiting
+      await new Promise(resolve => setTimeout(resolve, 500));
+    }
+    
+    setIsRefreshingValues(false);
+    toast({
+      title: 'Values Refreshed',
+      description: `Updated ${updatedCount} of ${comics.length} comics with current market values.`,
+    });
+  }, [user, comics, toast]);
 
   // Trigger backfill once comics are loaded
   useEffect(() => {
@@ -392,5 +442,8 @@ export function useComicCollection() {
     deleteComic,
     getStats,
     refetch: fetchComics,
+    refreshAllValues,
+    isRefreshingValues,
+    refreshProgress,
   };
 }
