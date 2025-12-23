@@ -47,6 +47,38 @@ export type Database = {
         }
         Relationships: []
       }
+      comic_value_history: {
+        Row: {
+          comic_id: string
+          id: string
+          recorded_at: string
+          source: string
+          value: number
+        }
+        Insert: {
+          comic_id: string
+          id?: string
+          recorded_at?: string
+          source: string
+          value: number
+        }
+        Update: {
+          comic_id?: string
+          id?: string
+          recorded_at?: string
+          source?: string
+          value?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "comic_value_history_comic_id_fkey"
+            columns: ["comic_id"]
+            isOneToOne: false
+            referencedRelation: "comics"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       comics: {
         Row: {
           artist: string | null

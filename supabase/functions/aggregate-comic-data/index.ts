@@ -19,6 +19,7 @@ interface AggregatedResult {
     high: number;
   };
   confidence: 'high' | 'medium' | 'low';
+  confidenceScore: number; // 0-100 numeric score
   sources: SourceValue[];
   fmvByGrade: Record<string, {
     recommended: number;
@@ -46,7 +47,9 @@ interface AggregatedResult {
     field: string;
     sources: { source: string; value: any }[];
     severity: 'low' | 'medium' | 'high';
+    message: string;
   }[];
+  validationWarnings?: string[];
   verifiedAt: string;
 }
 
@@ -59,14 +62,71 @@ function calculateMedian(values: number[]): number {
 }
 
 // Helper to calculate confidence based on source agreement
-function calculateConfidence(values: number[], median: number): 'high' | 'medium' | 'low' {
-  if (values.length < 2) return 'low';
+function calculateConfidence(values: number[], median: number): { level: 'high' | 'medium' | 'low'; score: number } {
+  if (values.length < 2) return { level: 'low', score: 25 };
   
+  // Calculate coefficient of variation (CV) - lower is better
+  const mean = values.reduce((a, b) => a + b, 0) / values.length;
+  const variance = values.reduce((sum, v) => sum + Math.pow(v - mean, 2), 0) / values.length;
+  const stdDev = Math.sqrt(variance);
+  const cv = mean > 0 ? stdDev / mean : 1;
+  
+  // Calculate outlier percentage
   const outliers = values.filter(v => Math.abs(v - median) / median > 0.3);
+  const outlierRatio = outliers.length / values.length;
   
-  if (outliers.length === 0 && values.length >= 3) return 'high';
-  if (outliers.length <= 1) return 'medium';
-  return 'low';
+  // Score: more sources + lower variance + fewer outliers = higher confidence
+  const sourceScore = Math.min(values.length / 4, 1) * 30; // Up to 30 points for sources
+  const varianceScore = Math.max(0, 1 - cv) * 40; // Up to 40 points for low variance
+  const outlierScore = (1 - outlierRatio) * 30; // Up to 30 points for few outliers
+  
+  const totalScore = Math.round(sourceScore + varianceScore + outlierScore);
+  
+  let level: 'high' | 'medium' | 'low';
+  if (totalScore >= 70 && values.length >= 3) level = 'high';
+  else if (totalScore >= 40) level = 'medium';
+  else level = 'low';
+  
+  return { level, score: totalScore };
+}
+
+// Helper to detect significant discrepancies
+function detectDiscrepancies(
+  fmvByGrade: Record<string, { source: string; value: number }[]>
+): AggregatedResult['discrepancies'] {
+  const discrepancies: AggregatedResult['discrepancies'] = [];
+  
+  for (const [gradeKey, sources] of Object.entries(fmvByGrade)) {
+    if (sources.length < 2) continue;
+    
+    const values = sources.map(s => s.value);
+    const median = calculateMedian(values);
+    
+    // Check each source against the median
+    for (const src of sources) {
+      const deviation = Math.abs(src.value - median) / median;
+      
+      if (deviation > 0.5) {
+        discrepancies.push({
+          field: `value_${gradeKey}`,
+          sources: sources,
+          severity: 'high',
+          message: `${src.source} reports $${src.value.toFixed(2)} which is ${(deviation * 100).toFixed(0)}% different from median $${median.toFixed(2)}`,
+        });
+        break; // One discrepancy per grade is enough
+      } else if (deviation > 0.3) {
+        discrepancies.push({
+          field: `value_${gradeKey}`,
+          sources: sources,
+          severity: 'medium',
+          message: `Price sources show ${(deviation * 100).toFixed(0)}% variance for grade ${gradeKey}`,
+        });
+        break;
+      }
+    }
+  }
+  
+  return discrepancies;
 }
 
 Deno.serve(async (req) => {
@@ -240,12 +300,13 @@ Deno.serve(async (req) => {
 
       // Add to sources list
       for (const sv of gradeValues) {
+        const conf = calculateConfidence(values, median);
         sources.push({
           source: sv.source,
           value: sv.value,
           grade: gradeKey,
           lastUpdated: new Date().toISOString(),
-          confidence: calculateConfidence(values, median),
+          confidence: conf.level,
         });
       }
     }
@@ -257,25 +318,10 @@ Deno.serve(async (req) => {
     const recommendedValue = targetValues?.recommended || 0;
     const valueRange = targetValues?.range || { low: 0, high: 0 };
     const allValues = sources.filter(s => s.grade === targetGrade || !s.grade).map(s => s.value);
-    const confidence = calculateConfidence(allValues, recommendedValue);
+    const confidenceResult = calculateConfidence(allValues, recommendedValue);
 
-    // Detect discrepancies
-    const discrepancies: AggregatedResult['discrepancies'] = [];
-    
-    for (const [gradeKey, gradeData] of Object.entries(aggregatedFmvByGrade)) {
-      const values = gradeData.sources.map(s => s.value);
-      const median = gradeData.recommended;
-      const outliers = gradeData.sources.filter(s => Math.abs(s.value - median) / median > 0.3);
-      
-      if (outliers.length > 0) {
-        const maxDeviation = Math.max(...values.map(v => Math.abs(v - median) / median));
-        discrepancies.push({
-          field: `value_${gradeKey}`,
-          sources: gradeData.sources,
-          severity: maxDeviation > 0.5 ? 'high' : maxDeviation > 0.3 ? 'medium' : 'low',
-        });
-      }
-    }
+    // Detect discrepancies with the new helper
+    const discrepancies = detectDiscrepancies(fmvByGrade);
 
     // Build key issue info
     const keyIssueInfo = keyIssueIndicators.length > 0 ? {
@@ -292,21 +338,22 @@ Deno.serve(async (req) => {
       success: sources.length > 0,
       recommendedValue,
       valueRange,
-      confidence,
+      confidence: confidenceResult.level,
+      confidenceScore: confidenceResult.score,
       sources,
       fmvByGrade: aggregatedFmvByGrade,
       metadata,
       creators,
       keyIssueInfo,
-      discrepancies: discrepancies.length > 0 ? discrepancies : undefined,
+      discrepancies: discrepancies && discrepancies.length > 0 ? discrepancies : undefined,
       verifiedAt: new Date().toISOString(),
     };
 
     console.log('Aggregation complete:', { 
       sourcesUsed: sources.length,
       gradesFound: Object.keys(aggregatedFmvByGrade).length,
-      confidence,
-      hasDiscrepancies: discrepancies.length > 0,
+      confidence: confidenceResult.level,
+      hasDiscrepancies: discrepancies ? discrepancies.length > 0 : false,
     });
 
     return new Response(
