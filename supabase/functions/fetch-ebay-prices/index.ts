@@ -5,50 +5,30 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-const EBAY_API_URL = 'https://api.ebay.com/buy/browse/v1/item_summary/search';
+// eBay Finding API endpoint for completed items (actual sold data)
+const EBAY_FINDING_API_URL = 'https://svcs.ebay.com/services/search/FindingService/v1';
 
-interface EbayPriceResult {
+interface EbaySoldResult {
   success: boolean;
-  source: 'ebay_estimate';
-  averageAskingPrice?: number;
-  estimatedSoldPrice?: number;
-  lowestPrice?: number;
-  highestPrice?: number;
-  listingCount: number;
-  listings?: Array<{
+  source: 'ebay_sold';
+  averageSoldPrice?: number;
+  medianSoldPrice?: number;
+  lowestSoldPrice?: number;
+  highestSoldPrice?: number;
+  soldCount: number;
+  recentSales?: Array<{
     title: string;
     price: number;
-    condition: string;
-    imageUrl?: string;
+    soldDate: string;
+    condition?: string;
     itemUrl: string;
   }>;
+  priceHistory?: Array<{
+    date: string;
+    price: number;
+    grade?: string;
+  }>;
   error?: string;
-}
-
-async function getEbayAccessToken(appId: string, certId: string): Promise<string | null> {
-  try {
-    const credentials = btoa(`${appId}:${certId}`);
-    
-    const response = await fetch('https://api.ebay.com/identity/v1/oauth2/token', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
-        'Authorization': `Basic ${credentials}`,
-      },
-      body: 'grant_type=client_credentials&scope=https://api.ebay.com/oauth/api_scope',
-    });
-
-    if (!response.ok) {
-      console.error('eBay auth failed:', response.status);
-      return null;
-    }
-
-    const data = await response.json();
-    return data.access_token;
-  } catch (error) {
-    console.error('eBay auth error:', error);
-    return null;
-  }
 }
 
 serve(async (req) => {
@@ -61,155 +41,184 @@ serve(async (req) => {
 
     if (!title) {
       return new Response(
-        JSON.stringify({ success: false, error: 'Title is required', listingCount: 0 }),
+        JSON.stringify({ success: false, error: 'Title is required', soldCount: 0 }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
     const EBAY_APP_ID = Deno.env.get('EBAY_APP_ID');
-    const EBAY_CERT_ID = Deno.env.get('EBAY_CERT_ID');
 
-    if (!EBAY_APP_ID || !EBAY_CERT_ID) {
-      console.log('eBay API keys not configured');
+    if (!EBAY_APP_ID) {
+      console.log('eBay APP_ID not configured');
       return new Response(
         JSON.stringify({ 
           success: false, 
           error: 'eBay API not configured',
-          source: 'ebay_estimate',
-          listingCount: 0 
+          source: 'ebay_sold',
+          soldCount: 0 
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    // Get access token
-    const accessToken = await getEbayAccessToken(EBAY_APP_ID, EBAY_CERT_ID);
-    if (!accessToken) {
-      return new Response(
-        JSON.stringify({ 
-          success: false, 
-          error: 'Failed to authenticate with eBay',
-          source: 'ebay_estimate',
-          listingCount: 0 
-        }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    // Build search query
-    let searchQuery = `${title}`;
+    // Build search query for Finding API
+    let keywords = `${title}`;
     if (issueNumber) {
-      searchQuery += ` #${issueNumber}`;
+      keywords += ` #${issueNumber}`;
     }
     if (publisher) {
-      searchQuery += ` ${publisher}`;
+      keywords += ` ${publisher}`;
     }
     if (gradeStatus && gradeStatus !== 'raw') {
-      searchQuery += ` ${gradeStatus.toUpperCase()}`;
+      keywords += ` ${gradeStatus.toUpperCase()}`;
       if (grade) {
-        searchQuery += ` ${grade}`;
+        keywords += ` ${grade}`;
       }
     }
-    searchQuery += ' comic';
+    keywords += ' comic';
 
-    console.log('eBay search query:', searchQuery);
+    console.log('eBay Finding API search:', keywords);
 
-    // Search eBay Browse API for active listings
-    const searchUrl = new URL(EBAY_API_URL);
-    searchUrl.searchParams.set('q', searchQuery);
-    searchUrl.searchParams.set('limit', '25');
-    searchUrl.searchParams.set('category_ids', '63'); // Comics category
-    searchUrl.searchParams.set('sort', 'price');
+    // Call eBay Finding API - findCompletedItems for actual sold data
+    const findingUrl = new URL(EBAY_FINDING_API_URL);
+    findingUrl.searchParams.set('OPERATION-NAME', 'findCompletedItems');
+    findingUrl.searchParams.set('SERVICE-VERSION', '1.13.0');
+    findingUrl.searchParams.set('SECURITY-APPNAME', EBAY_APP_ID);
+    findingUrl.searchParams.set('RESPONSE-DATA-FORMAT', 'JSON');
+    findingUrl.searchParams.set('REST-PAYLOAD', 'true');
+    findingUrl.searchParams.set('keywords', keywords);
+    findingUrl.searchParams.set('categoryId', '63'); // Comics category
+    findingUrl.searchParams.set('paginationInput.entriesPerPage', '50');
+    findingUrl.searchParams.set('sortOrder', 'EndTimeSoonest');
+    // Only get sold items (not unsold completed auctions)
+    findingUrl.searchParams.set('itemFilter(0).name', 'SoldItemsOnly');
+    findingUrl.searchParams.set('itemFilter(0).value', 'true');
 
-    const response = await fetch(searchUrl.toString(), {
-      headers: {
-        'Authorization': `Bearer ${accessToken}`,
-        'X-EBAY-C-MARKETPLACE-ID': 'EBAY_US',
-        'Content-Type': 'application/json',
-      },
-    });
+    const response = await fetch(findingUrl.toString());
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('eBay API error:', response.status, errorText);
+      console.error('eBay Finding API error:', response.status, errorText);
       return new Response(
         JSON.stringify({ 
           success: false, 
-          error: 'eBay search failed',
-          source: 'ebay_estimate',
-          listingCount: 0 
+          error: 'eBay Finding API failed',
+          source: 'ebay_sold',
+          soldCount: 0 
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
     const data = await response.json();
-    const items = data.itemSummaries || [];
-
-    if (items.length === 0) {
+    
+    // Parse Finding API response structure
+    const searchResult = data.findCompletedItemsResponse?.[0];
+    const ack = searchResult?.ack?.[0];
+    
+    if (ack !== 'Success') {
+      const errorMsg = searchResult?.errorMessage?.[0]?.error?.[0]?.message?.[0] || 'Unknown error';
+      console.error('eBay Finding API ack failed:', errorMsg);
       return new Response(
         JSON.stringify({ 
-          success: true, 
-          source: 'ebay_estimate',
-          listingCount: 0,
-          error: 'No listings found'
+          success: false, 
+          error: errorMsg,
+          source: 'ebay_sold',
+          soldCount: 0 
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    // Extract prices
-    const prices: number[] = [];
-    const listings: EbayPriceResult['listings'] = [];
+    const items = searchResult?.searchResult?.[0]?.item || [];
+    
+    if (items.length === 0) {
+      console.log('No sold listings found');
+      return new Response(
+        JSON.stringify({ 
+          success: true, 
+          source: 'ebay_sold',
+          soldCount: 0,
+          error: 'No sold listings found'
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Extract actual sold prices
+    const soldPrices: number[] = [];
+    const recentSales: EbaySoldResult['recentSales'] = [];
+    const priceHistory: EbaySoldResult['priceHistory'] = [];
 
     for (const item of items) {
-      const price = parseFloat(item.price?.value || '0');
+      // Only process items that actually sold
+      const sellingStatus = item.sellingStatus?.[0];
+      const sellingState = sellingStatus?.sellingState?.[0];
+      
+      if (sellingState !== 'EndedWithSales') continue;
+      
+      const priceInfo = sellingStatus?.convertedCurrentPrice?.[0] || sellingStatus?.currentPrice?.[0];
+      const price = parseFloat(priceInfo?.['__value__'] || priceInfo || '0');
+      
       if (price > 0) {
-        prices.push(price);
-        listings.push({
-          title: item.title,
+        soldPrices.push(price);
+        
+        const endTime = item.listingInfo?.[0]?.endTime?.[0] || '';
+        const itemTitle = item.title?.[0] || '';
+        const itemUrl = item.viewItemURL?.[0] || '';
+        const condition = item.condition?.[0]?.conditionDisplayName?.[0] || '';
+        
+        recentSales.push({
+          title: itemTitle,
           price,
-          condition: item.condition || 'Unknown',
-          imageUrl: item.thumbnailImages?.[0]?.imageUrl,
-          itemUrl: item.itemWebUrl,
+          soldDate: endTime,
+          condition,
+          itemUrl,
+        });
+
+        priceHistory.push({
+          date: endTime.split('T')[0],
+          price,
         });
       }
     }
 
-    if (prices.length === 0) {
+    if (soldPrices.length === 0) {
       return new Response(
         JSON.stringify({ 
           success: true, 
-          source: 'ebay_estimate',
-          listingCount: 0,
-          error: 'No valid prices found'
+          source: 'ebay_sold',
+          soldCount: 0,
+          error: 'No valid sold prices found'
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    // Calculate statistics
-    const sortedPrices = [...prices].sort((a, b) => a - b);
-    const lowestPrice = sortedPrices[0];
-    const highestPrice = sortedPrices[sortedPrices.length - 1];
-    const averageAskingPrice = prices.reduce((a, b) => a + b, 0) / prices.length;
+    // Calculate statistics from ACTUAL sold prices
+    const sortedPrices = [...soldPrices].sort((a, b) => a - b);
+    const lowestSoldPrice = sortedPrices[0];
+    const highestSoldPrice = sortedPrices[sortedPrices.length - 1];
+    const averageSoldPrice = soldPrices.reduce((a, b) => a + b, 0) / soldPrices.length;
     
-    // Estimate sold price: Apply 15-20% discount to average asking
-    // Items typically sell below asking price
-    const discountRate = 0.18; // 18% average discount
-    const estimatedSoldPrice = Math.round(averageAskingPrice * (1 - discountRate));
+    // Calculate median (more accurate than average for outliers)
+    const mid = Math.floor(sortedPrices.length / 2);
+    const medianSoldPrice = sortedPrices.length % 2 
+      ? sortedPrices[mid] 
+      : (sortedPrices[mid - 1] + sortedPrices[mid]) / 2;
 
-    console.log(`eBay results: ${prices.length} listings, avg asking: $${averageAskingPrice.toFixed(2)}, estimated sold: $${estimatedSoldPrice}`);
+    console.log(`eBay SOLD results: ${soldPrices.length} sales, median: $${medianSoldPrice.toFixed(2)}, avg: $${averageSoldPrice.toFixed(2)}`);
 
-    const result: EbayPriceResult = {
+    const result: EbaySoldResult = {
       success: true,
-      source: 'ebay_estimate',
-      averageAskingPrice: Math.round(averageAskingPrice),
-      estimatedSoldPrice,
-      lowestPrice: Math.round(lowestPrice),
-      highestPrice: Math.round(highestPrice),
-      listingCount: prices.length,
-      listings: listings.slice(0, 5), // Return top 5 for display
+      source: 'ebay_sold',
+      averageSoldPrice: Math.round(averageSoldPrice * 100) / 100,
+      medianSoldPrice: Math.round(medianSoldPrice * 100) / 100,
+      lowestSoldPrice: Math.round(lowestSoldPrice * 100) / 100,
+      highestSoldPrice: Math.round(highestSoldPrice * 100) / 100,
+      soldCount: soldPrices.length,
+      recentSales: recentSales.slice(0, 10), // Return top 10 for display
+      priceHistory: priceHistory.slice(0, 20), // Last 20 for charting
     };
 
     return new Response(
@@ -217,13 +226,13 @@ serve(async (req) => {
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   } catch (error) {
-    console.error('eBay price fetch error:', error);
+    console.error('eBay sold price fetch error:', error);
     return new Response(
       JSON.stringify({ 
         success: false, 
         error: error instanceof Error ? error.message : 'Unknown error',
-        source: 'ebay_estimate',
-        listingCount: 0 
+        source: 'ebay_sold',
+        soldCount: 0 
       }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );

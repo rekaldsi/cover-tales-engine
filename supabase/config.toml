@@ -47,3 +47,6 @@ verify_jwt = false
 
 [functions.enrich-comic-details]
 verify_jwt = false
+
+[functions.scheduled-value-refresh]
+verify_jwt = false

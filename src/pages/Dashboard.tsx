@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useComicCollection } from '@/hooks/useComicCollection';
 import { useBackgroundEnrichment } from '@/hooks/useBackgroundEnrichment';
 import { useAuth } from '@/contexts/AuthContext';
+import { usePortfolioSnapshots } from '@/hooks/usePortfolioSnapshots';
 import { StatCard } from '@/components/comics/StatCard';
 import { EraChart } from '@/components/comics/EraChart';
 import { RecentlyAddedCarousel } from '@/components/comics/RecentlyAddedCarousel';
@@ -10,10 +11,11 @@ import { ComicDetailModal } from '@/components/comics/ComicDetailModal';
 import { SigningRecommendations } from '@/components/signings/SigningRecommendations';
 import { GoCollectImport } from '@/components/import/GoCollectImport';
 import { EmptyCollectionState } from '@/components/dashboard/EmptyCollectionState';
+import { CollectionPerformance } from '@/components/dashboard/CollectionPerformance';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { Comic } from '@/types/comic';
-import { Library, DollarSign, Star, TrendingUp, Loader2, LogIn, RefreshCw, BookOpen, MoreHorizontal } from 'lucide-react';
+import { Library, DollarSign, Star, TrendingUp, Loader2, LogIn, RefreshCw, BookOpen, MoreHorizontal, Upload } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -30,12 +32,25 @@ export default function Dashboard({ onAddClick, onHuntingClick }: DashboardProps
   const { comics, getStats, deleteComic, updateComic, refetch, refreshAllValues, refreshAllDetails, isRefreshingValues, refreshProgress } = useComicCollection();
   const { progress, isEnriching } = useBackgroundEnrichment(comics, updateComic);
   const { user } = useAuth();
+  const { saveSnapshot } = usePortfolioSnapshots();
   const navigate = useNavigate();
   const stats = getStats();
   const [selectedComic, setSelectedComic] = useState<Comic | null>(null);
   
   const keyIssueCount = comics.filter(c => c.isKeyIssue).length;
   const gradedCount = comics.filter(c => c.gradeStatus !== 'raw').length;
+
+  // Save portfolio snapshot when collection changes
+  useEffect(() => {
+    if (user && comics.length > 0) {
+      saveSnapshot({
+        totalValue: stats.totalValue,
+        comicCount: stats.totalComics,
+        gradedCount,
+        keyIssueCount,
+      });
+    }
+  }, [user, stats.totalValue, stats.totalComics, gradedCount, keyIssueCount]);
   
   const formatCurrency = (value: number) => {
     // Round to 2 decimal places first to fix floating point issues
@@ -143,17 +158,20 @@ export default function Dashboard({ onAddClick, onHuntingClick }: DashboardProps
         </div>
       </section>
 
-      {/* Actions Menu - compact dropdown on mobile, hidden on mobile */}
-      <section className="hidden sm:block relative overflow-hidden rounded-2xl p-4 sm:p-6">
-        <div className="flex items-center justify-between">
-          <p className="text-sm text-muted-foreground">Manage your collection</p>
-          <div className="flex gap-2">
+      {/* Actions Menu - cleaned up layout */}
+      <section className="relative overflow-hidden rounded-2xl p-4 sm:p-6">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+          <div className="flex-1 w-full sm:w-auto">
+            <CollectionPerformance />
+          </div>
+          
+          <div className="flex gap-2 w-full sm:w-auto">
             <Button
               variant="outline"
               size="sm"
               onClick={refreshAllDetails}
               disabled={isRefreshingValues}
-              className="min-h-[44px]"
+              className="min-h-[44px] flex-1 sm:flex-none"
             >
               {isRefreshingValues ? (
                 <>
@@ -163,7 +181,8 @@ export default function Dashboard({ onAddClick, onHuntingClick }: DashboardProps
               ) : (
                 <>
                   <BookOpen className="w-4 h-4 mr-2" />
-                  Refresh Details
+                  <span className="hidden sm:inline">Refresh Details</span>
+                  <span className="sm:hidden">Details</span>
                 </>
               )}
             </Button>
@@ -172,7 +191,7 @@ export default function Dashboard({ onAddClick, onHuntingClick }: DashboardProps
               size="sm"
               onClick={refreshAllValues}
               disabled={isRefreshingValues}
-              className="min-h-[44px]"
+              className="min-h-[44px] flex-1 sm:flex-none"
             >
               {isRefreshingValues ? (
                 <>
@@ -182,35 +201,27 @@ export default function Dashboard({ onAddClick, onHuntingClick }: DashboardProps
               ) : (
                 <>
                   <RefreshCw className="w-4 h-4 mr-2" />
-                  Refresh Values
+                  <span className="hidden sm:inline">Refresh Values</span>
+                  <span className="sm:hidden">Values</span>
                 </>
               )}
             </Button>
-            <GoCollectImport onImportComplete={refetch} />
+            
+            {/* Actions dropdown with Import */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm" className="min-h-[44px]">
+                  <MoreHorizontal className="w-4 h-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-48">
+                <DropdownMenuItem asChild>
+                  <GoCollectImport onImportComplete={refetch} />
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </div>
-      </section>
-
-      {/* Mobile Actions Dropdown */}
-      <section className="sm:hidden flex justify-end">
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="outline" size="sm" className="min-h-[44px]">
-              <MoreHorizontal className="w-4 h-4 mr-2" />
-              Actions
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-48">
-            <DropdownMenuItem onClick={refreshAllDetails} disabled={isRefreshingValues}>
-              <BookOpen className="w-4 h-4 mr-2" />
-              Refresh Details
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={refreshAllValues} disabled={isRefreshingValues}>
-              <RefreshCw className="w-4 h-4 mr-2" />
-              Refresh Values
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
       </section>
       
       
