@@ -1,12 +1,30 @@
-import { TrendingUp, TrendingDown, Minus } from 'lucide-react';
+import { useState } from 'react';
+import { TrendingUp, TrendingDown, Minus, Camera, RefreshCw, Loader2 } from 'lucide-react';
 import { usePortfolioSnapshots } from '@/hooks/usePortfolioSnapshots';
+import { Button } from '@/components/ui/button';
 
 interface CollectionPerformanceProps {
   className?: string;
 }
 
 export function CollectionPerformance({ className = '' }: CollectionPerformanceProps) {
-  const { trend, isLoading } = usePortfolioSnapshots();
+  const { trend, isLoading, saveSnapshot } = usePortfolioSnapshots();
+  const [isCreatingSnapshot, setIsCreatingSnapshot] = useState(false);
+
+  const handleCreateSnapshot = async () => {
+    setIsCreatingSnapshot(true);
+    try {
+      // Create initial baseline with zeros - will be updated on next collection refresh
+      await saveSnapshot({
+        totalValue: 0,
+        comicCount: 0,
+        gradedCount: 0,
+        keyIssueCount: 0,
+      });
+    } finally {
+      setIsCreatingSnapshot(false);
+    }
+  };
 
   if (isLoading) {
     return (
@@ -20,10 +38,35 @@ export function CollectionPerformance({ className = '' }: CollectionPerformanceP
   if (!trend) {
     return (
       <div className={`stat-card p-4 ${className}`}>
-        <p className="text-sm text-muted-foreground">Collection Performance</p>
-        <p className="text-xs text-muted-foreground mt-1">
-          Not enough data yet. Values are tracked daily.
-        </p>
+        <div className="flex items-start gap-3">
+          <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
+            <Camera className="w-5 h-5 text-primary" />
+          </div>
+          <div className="flex-1">
+            <p className="text-sm font-semibold text-foreground">Create Baseline Snapshot</p>
+            <p className="text-xs text-muted-foreground mt-1 mb-3">
+              Track your collection's value over time by creating your first portfolio snapshot.
+            </p>
+            <Button 
+              size="sm" 
+              onClick={handleCreateSnapshot}
+              disabled={isCreatingSnapshot}
+              className="gap-2"
+            >
+              {isCreatingSnapshot ? (
+                <>
+                  <Loader2 className="w-3 h-3 animate-spin" />
+                  Creating...
+                </>
+              ) : (
+                <>
+                  <Camera className="w-3 h-3" />
+                  Create Snapshot
+                </>
+              )}
+            </Button>
+          </div>
+        </div>
       </div>
     );
   }

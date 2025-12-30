@@ -5,6 +5,8 @@ import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Comic, ERA_LABELS, SignatureType, Signature, SIGNATURE_TYPE_LABELS } from '@/types/comic';
 import { Star, Award, Calendar, User, MapPin, Trash2, Loader2, PenTool, CheckCircle2, ShieldCheck, Settings, Edit, Palette, BookOpen, X, FileText, Users, ChevronDown, ChevronUp } from 'lucide-react';
+import { ConfidenceIndicator, getConfidenceLevel, getConfidenceLabel } from '@/components/ui/ConfidenceIndicator';
+import { ValueRangeDisplay, formatCurrencyFull } from '@/components/ui/ValueRangeDisplay';
 import { useComicEnrichment } from '@/hooks/useComicEnrichment';
 import { MarkAsSignedDialog } from './MarkAsSignedDialog';
 import { EditComicDialog } from './EditComicDialog';
@@ -210,8 +212,22 @@ export function ComicDetailModal({ comic, open, onOpenChange, onDelete, onUpdate
                     <div className="space-y-2">
                       {displayComic.currentValue && (
                         <div className="stat-card p-3">
-                          <p className="text-xs text-muted-foreground uppercase tracking-wider">Current Value</p>
+                          <div className="flex items-center justify-between mb-1">
+                            <p className="text-xs text-muted-foreground uppercase tracking-wider">Current Value</p>
+                            {(displayComic as any).confidenceScore !== undefined && (
+                              <ConfidenceIndicator 
+                                score={(displayComic as any).confidenceScore} 
+                                showLabel 
+                                size="sm" 
+                              />
+                            )}
+                          </div>
                           <p className="text-xl font-display gold-text">{formatCurrency(displayComic.currentValue)}</p>
+                          {((displayComic as any).valueRangeLow || displayComic.valueRange?.low) && (
+                            <p className="text-xs text-muted-foreground mt-1">
+                              Range: {formatCurrency((displayComic as any).valueRangeLow || displayComic.valueRange?.low)} – {formatCurrency((displayComic as any).valueRangeHigh || displayComic.valueRange?.high)}
+                            </p>
+                          )}
                         </div>
                       )}
                       {displayComic.purchasePrice && (
