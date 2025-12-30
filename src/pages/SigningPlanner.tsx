@@ -3,9 +3,11 @@ import { useComicCollection } from '@/hooks/useComicCollection';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Comic } from '@/types/comic';
-import { Search, PenTool, Star, DollarSign, CheckCircle2, Image } from 'lucide-react';
+import { Search, PenTool, Star, CheckCircle2, Image, CalendarDays } from 'lucide-react';
 import { ComicDetailSheet } from '@/components/comics/ComicDetailSheet';
+import { ConventionMode } from '@/components/signings/ConventionMode';
 
 interface CreatorMatch {
   name: string;
@@ -97,10 +99,27 @@ export default function SigningPlanner() {
       <div>
         <h1 className="font-display text-4xl tracking-tight">Signing Planner</h1>
         <p className="text-muted-foreground">
-          Search for a creator to see which comics you can get signed
+          Plan signings by creator search or convention
         </p>
       </div>
 
+      <Tabs defaultValue="creator" className="w-full">
+        <TabsList className="grid w-full max-w-md grid-cols-2">
+          <TabsTrigger value="creator" className="gap-2">
+            <PenTool className="h-4 w-4" />
+            Creator Search
+          </TabsTrigger>
+          <TabsTrigger value="convention" className="gap-2">
+            <CalendarDays className="h-4 w-4" />
+            Convention Mode
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="convention" className="mt-6">
+          <ConventionMode />
+        </TabsContent>
+
+        <TabsContent value="creator" className="mt-6 space-y-6">
       {/* Search */}
       <div className="relative">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
@@ -248,6 +267,8 @@ export default function SigningPlanner() {
         onDelete={deleteComic}
         onUpdate={updateComic}
       />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }
