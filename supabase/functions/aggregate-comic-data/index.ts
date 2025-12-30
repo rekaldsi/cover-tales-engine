@@ -1,4 +1,5 @@
 import { generateRequestId, createTimer, logProvider } from '../_shared/integration-logger.ts';
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.49.4';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -386,6 +387,60 @@ Deno.serve(async (req) => {
       discrepancies: discrepancies && discrepancies.length > 0 ? discrepancies : undefined,
       verifiedAt: new Date().toISOString(),
     };
+
+    // Store results in comic_value_sources if comic_id is provided
+    if (comic_id) {
+      const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+      const supabase = createClient(supabaseUrl, supabaseServiceKey);
+      
+      // Prepare value source records for upsert
+      const valueSourceRecords = sources.map(s => ({
+        comic_id,
+        provider: s.source,
+        grade_context: s.grade || 'current',
+        value: s.value,
+        range_low: aggregatedFmvByGrade[s.grade || 'current']?.range.low || null,
+        range_high: aggregatedFmvByGrade[s.grade || 'current']?.range.high || null,
+        confidence: confidenceResult.score,
+        comps: null, // Will be populated by provider-specific data later
+        fetched_at: new Date().toISOString(),
+        status: 'ok',
+        error_reason: null,
+      }));
+
+      // Upsert value sources
+      if (valueSourceRecords.length > 0) {
+        const { error: upsertError } = await supabase
+          .from('comic_value_sources')
+          .upsert(valueSourceRecords, { 
+            onConflict: 'comic_id,provider,grade_context',
+            ignoreDuplicates: false 
+          });
+        
+        if (upsertError) {
+          console.error(`[${requestId}] Error upserting value sources:`, upsertError);
+        } else {
+          console.log(`[${requestId}] Stored ${valueSourceRecords.length} value sources`);
+        }
+      }
+
+      // Update comic's confidence_score and value_range
+      const { error: updateError } = await supabase
+        .from('comics')
+        .update({
+          confidence_score: confidenceResult.score,
+          value_range_low: valueRange.low || null,
+          value_range_high: valueRange.high || null,
+          current_value: recommendedValue > 0 ? recommendedValue : null,
+        })
+        .eq('id', comic_id);
+
+      if (updateError) {
+        console.error(`[${requestId}] Error updating comic:`, updateError);
+      } else {
+        console.log(`[${requestId}] Updated comic confidence_score=${confidenceResult.score}`);
+      }
+    }
 
     console.log('Aggregation complete:', { 
       sourcesUsed: sources.length,
