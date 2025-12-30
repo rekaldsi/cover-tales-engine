@@ -47,6 +47,44 @@ export type Database = {
         }
         Relationships: []
       }
+      comic_creators: {
+        Row: {
+          comic_id: string
+          confidence: number | null
+          created_at: string
+          id: string
+          name: string
+          role: string
+          source: string
+        }
+        Insert: {
+          comic_id: string
+          confidence?: number | null
+          created_at?: string
+          id?: string
+          name: string
+          role: string
+          source: string
+        }
+        Update: {
+          comic_id?: string
+          confidence?: number | null
+          created_at?: string
+          id?: string
+          name?: string
+          role?: string
+          source?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "comic_creators_comic_id_fkey"
+            columns: ["comic_id"]
+            isOneToOne: false
+            referencedRelation: "comics"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       comic_value_history: {
         Row: {
           comic_id: string
@@ -89,12 +127,14 @@ export type Database = {
           comicvine_id: string | null
           condition_confidence: string | null
           condition_notes: string | null
+          confidence_score: number | null
           copy_number: number | null
           cover_artist: string | null
           cover_date: string | null
           cover_image_url: string | null
           cover_price: string | null
           created_at: string
+          credits_source: string | null
           current_value: number | null
           editor: string | null
           era: string | null
@@ -131,6 +171,8 @@ export type Database = {
           upc_code: string | null
           updated_at: string
           user_id: string
+          value_range_high: number | null
+          value_range_low: number | null
           variant_type: string | null
           visible_defects: string[] | null
           volume: string | null
@@ -145,12 +187,14 @@ export type Database = {
           comicvine_id?: string | null
           condition_confidence?: string | null
           condition_notes?: string | null
+          confidence_score?: number | null
           copy_number?: number | null
           cover_artist?: string | null
           cover_date?: string | null
           cover_image_url?: string | null
           cover_price?: string | null
           created_at?: string
+          credits_source?: string | null
           current_value?: number | null
           editor?: string | null
           era?: string | null
@@ -187,6 +231,8 @@ export type Database = {
           upc_code?: string | null
           updated_at?: string
           user_id: string
+          value_range_high?: number | null
+          value_range_low?: number | null
           variant_type?: string | null
           visible_defects?: string[] | null
           volume?: string | null
@@ -201,12 +247,14 @@ export type Database = {
           comicvine_id?: string | null
           condition_confidence?: string | null
           condition_notes?: string | null
+          confidence_score?: number | null
           copy_number?: number | null
           cover_artist?: string | null
           cover_date?: string | null
           cover_image_url?: string | null
           cover_price?: string | null
           created_at?: string
+          credits_source?: string | null
           current_value?: number | null
           editor?: string | null
           era?: string | null
@@ -243,10 +291,60 @@ export type Database = {
           upc_code?: string | null
           updated_at?: string
           user_id?: string
+          value_range_high?: number | null
+          value_range_low?: number | null
           variant_type?: string | null
           visible_defects?: string[] | null
           volume?: string | null
           writer?: string | null
+        }
+        Relationships: []
+      }
+      integration_runs: {
+        Row: {
+          comic_id: string | null
+          created_at: string
+          error_code: string | null
+          error_message: string | null
+          function: string
+          http_status: number | null
+          id: string
+          latency_ms: number | null
+          provider: string
+          request_id: string | null
+          status: string
+          summary: Json | null
+          user_id: string | null
+        }
+        Insert: {
+          comic_id?: string | null
+          created_at?: string
+          error_code?: string | null
+          error_message?: string | null
+          function: string
+          http_status?: number | null
+          id?: string
+          latency_ms?: number | null
+          provider: string
+          request_id?: string | null
+          status: string
+          summary?: Json | null
+          user_id?: string | null
+        }
+        Update: {
+          comic_id?: string | null
+          created_at?: string
+          error_code?: string | null
+          error_message?: string | null
+          function?: string
+          http_status?: number | null
+          id?: string
+          latency_ms?: number | null
+          provider?: string
+          request_id?: string | null
+          status?: string
+          summary?: Json | null
+          user_id?: string | null
         }
         Relationships: []
       }

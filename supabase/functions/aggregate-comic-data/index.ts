@@ -1,3 +1,5 @@
+import { generateRequestId, createTimer, logProvider } from '../_shared/integration-logger.ts';
+
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -134,6 +136,9 @@ Deno.serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
+  const requestId = generateRequestId();
+  const overallTimer = createTimer();
+
   try {
     const { 
       title, 
@@ -143,6 +148,8 @@ Deno.serve(async (req) => {
       cert_number,
       grade_status,
       comicvine_id,
+      user_id,
+      comic_id,
       include_sources = ['gocollect', 'ebay', 'gpa', 'covrprice', 'comicvine']
     } = await req.json();
 
@@ -153,81 +160,112 @@ Deno.serve(async (req) => {
       );
     }
 
-    console.log('Aggregating data for:', { title, issue_number, publisher, grade, include_sources });
+    console.log(`[${requestId}] Aggregating data for:`, { title, issue_number, publisher, grade, include_sources });
 
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseKey = Deno.env.get('SUPABASE_ANON_KEY')!;
 
-    // Fetch from all sources in parallel
-    const fetchPromises: Promise<{ source: string; data: any }>[] = [];
-
-    if (include_sources.includes('gocollect')) {
-      fetchPromises.push(
-        fetch(`${supabaseUrl}/functions/v1/fetch-gocollect-value`, {
+    // Helper to fetch and log each provider
+    const fetchWithLogging = async (
+      source: string,
+      endpoint: string,
+      body: Record<string, any>
+    ): Promise<{ source: string; data: any; latencyMs: number }> => {
+      const timer = createTimer();
+      try {
+        const response = await fetch(`${supabaseUrl}/functions/v1/${endpoint}`, {
           method: 'POST',
           headers: { 
             'Content-Type': 'application/json',
             'Authorization': `Bearer ${supabaseKey}`,
           },
-          body: JSON.stringify({ title, issue_number, publisher, grade, cert_number }),
-        }).then(r => r.json()).then(data => ({ source: 'gocollect', data }))
-        .catch(e => ({ source: 'gocollect', data: { success: false, error: e.message } }))
+          body: JSON.stringify(body),
+        });
+        
+        const data = await response.json();
+        const latencyMs = timer();
+        
+        // Log the provider call
+        await logProvider(
+          {
+            requestId,
+            userId: user_id,
+            comicId: comic_id,
+            function: 'aggregate-comic-data',
+            provider: source,
+            httpStatus: response.status,
+            inputsSummary: { title, issue_number, grade_status },
+            outputsSummary: { 
+              success: data?.success, 
+              hasValue: !!data?.fmv || !!data?.estimatedSoldPrice,
+              fieldsReturned: data ? Object.keys(data).length : 0,
+            },
+          },
+          {
+            status: data?.success ? 'ok' : 'error',
+            latencyMs,
+            errorCode: data?.success ? undefined : 'PROVIDER_FAILURE',
+            errorMessage: data?.error?.substring(0, 200),
+          }
+        );
+        
+        return { source, data, latencyMs };
+      } catch (e) {
+        const latencyMs = timer();
+        const errorMessage = e instanceof Error ? e.message : 'Unknown error';
+        
+        // Log the failure
+        await logProvider(
+          {
+            requestId,
+            userId: user_id,
+            comicId: comic_id,
+            function: 'aggregate-comic-data',
+            provider: source,
+            inputsSummary: { title, issue_number },
+          },
+          {
+            status: 'error',
+            latencyMs,
+            errorCode: 'FETCH_ERROR',
+            errorMessage: errorMessage.substring(0, 200),
+          }
+        );
+        
+        return { source, data: { success: false, error: errorMessage }, latencyMs };
+      }
+    };
+
+    // Fetch from all sources in parallel
+    const fetchPromises: Promise<{ source: string; data: any; latencyMs: number }>[] = [];
+
+    if (include_sources.includes('gocollect')) {
+      fetchPromises.push(
+        fetchWithLogging('gocollect', 'fetch-gocollect-value', { title, issue_number, publisher, grade, cert_number })
       );
     }
 
     if (include_sources.includes('ebay')) {
       fetchPromises.push(
-        fetch(`${supabaseUrl}/functions/v1/fetch-ebay-prices`, {
-          method: 'POST',
-          headers: { 
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${supabaseKey}`,
-          },
-          body: JSON.stringify({ title, issueNumber: issue_number, publisher, grade, gradeStatus: grade_status }),
-        }).then(r => r.json()).then(data => ({ source: 'ebay', data }))
-        .catch(e => ({ source: 'ebay', data: { success: false, error: e.message } }))
+        fetchWithLogging('ebay', 'fetch-ebay-prices', { title, issueNumber: issue_number, publisher, grade, gradeStatus: grade_status })
       );
     }
 
     if (include_sources.includes('gpa')) {
       fetchPromises.push(
-        fetch(`${supabaseUrl}/functions/v1/fetch-gpa-value`, {
-          method: 'POST',
-          headers: { 
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${supabaseKey}`,
-          },
-          body: JSON.stringify({ title, issue_number, publisher, grade, cert_number }),
-        }).then(r => r.json()).then(data => ({ source: 'gpa', data }))
-        .catch(e => ({ source: 'gpa', data: { success: false, error: e.message } }))
+        fetchWithLogging('gpa', 'fetch-gpa-value', { title, issue_number, publisher, grade, cert_number })
       );
     }
 
     if (include_sources.includes('covrprice')) {
       fetchPromises.push(
-        fetch(`${supabaseUrl}/functions/v1/fetch-covrprice-value`, {
-          method: 'POST',
-          headers: { 
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${supabaseKey}`,
-          },
-          body: JSON.stringify({ title, issue_number, publisher, grade }),
-        }).then(r => r.json()).then(data => ({ source: 'covrprice', data }))
-        .catch(e => ({ source: 'covrprice', data: { success: false, error: e.message } }))
+        fetchWithLogging('covrprice', 'fetch-covrprice-value', { title, issue_number, publisher, grade })
       );
     }
 
     if (include_sources.includes('comicvine')) {
       fetchPromises.push(
-        fetch(`${supabaseUrl}/functions/v1/fetch-comicvine-data`, {
-          method: 'POST',
-          headers: { 
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${supabaseKey}`,
-          },
-          body: JSON.stringify({ title, issue_number, publisher, comicvine_id }),
-        }).then(r => r.json()).then(data => ({ source: 'comicvine', data }))
-        .catch(e => ({ source: 'comicvine', data: { success: false, error: e.message } }))
+        fetchWithLogging('comicvine', 'fetch-comicvine-data', { title, issue_number, publisher, comicvine_id })
       );
     }
 
@@ -239,9 +277,9 @@ Deno.serve(async (req) => {
     const results = await Promise.race([
       Promise.all(fetchPromises),
       timeoutPromise.then(() => [])
-    ]) as { source: string; data: any }[];
+    ]) as { source: string; data: any; latencyMs: number }[];
 
-    console.log('Source results:', results.map(r => ({ source: r.source, success: r.data?.success })));
+    console.log(`[${requestId}] Source results:`, results.map(r => ({ source: r.source, success: r.data?.success, latencyMs: r.latencyMs })));
 
     // Aggregate values by grade
     const fmvByGrade: Record<string, { source: string; value: number }[]> = {};
