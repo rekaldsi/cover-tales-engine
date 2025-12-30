@@ -5,6 +5,7 @@ import { ComicCard } from '@/components/comics/ComicCard';
 import { GroupedComicCard } from '@/components/comics/GroupedComicCard';
 import { CopyListModal } from '@/components/comics/CopyListModal';
 import { ComicDetailModal } from '@/components/comics/ComicDetailModal';
+import { CSVImportWizard } from '@/components/import/CSVImportWizard';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -20,7 +21,7 @@ type SortOption = 'dateAdded' | 'title' | 'value' | 'issue';
 const GROUPED_VIEW_KEY = 'comic-collection-grouped-view';
 
 export default function Collection() {
-  const { comics, deleteComic, updateComic } = useComicCollection();
+  const { comics, deleteComic, updateComic, refetch } = useComicCollection();
   const { groupedComics, duplicateCount } = useGroupedComics(comics);
   const [selectedComic, setSelectedComic] = useState<Comic | null>(null);
   const [selectedGroup, setSelectedGroup] = useState<ComicGroup | null>(null);
@@ -155,6 +156,7 @@ export default function Collection() {
         </div>
         
         <div className="flex items-center gap-2">
+          <CSVImportWizard onComplete={refetch} />
           <Select onValueChange={(v) => v === 'csv' ? exportToCSV(comics) : exportToJSON(comics)}>
             <SelectTrigger className="w-auto gap-2 min-h-[44px]">
               <Download className="h-4 w-4" />

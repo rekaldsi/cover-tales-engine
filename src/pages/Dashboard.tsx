@@ -11,6 +11,7 @@ import { RecentlyAddedCarousel } from '@/components/comics/RecentlyAddedCarousel
 import { ComicDetailModal } from '@/components/comics/ComicDetailModal';
 import { SigningRecommendations } from '@/components/signings/SigningRecommendations';
 import { GoCollectImport } from '@/components/import/GoCollectImport';
+import { CSVImportWizard } from '@/components/import/CSVImportWizard';
 import { EmptyCollectionState } from '@/components/dashboard/EmptyCollectionState';
 import { CollectionPerformance } from '@/components/dashboard/CollectionPerformance';
 import { PortfolioChart } from '@/components/dashboard/PortfolioChart';
@@ -235,7 +236,10 @@ export default function Dashboard({ onAddClick, onHuntingClick }: DashboardProps
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-48">
-                <DropdownMenuItem asChild>
+                <DropdownMenuItem asChild className="p-0">
+                  <CSVImportWizard onComplete={refetch} />
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild className="p-0">
                   <GoCollectImport onImportComplete={refetch} />
                 </DropdownMenuItem>
               </DropdownMenuContent>
