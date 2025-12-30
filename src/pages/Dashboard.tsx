@@ -13,17 +13,17 @@ import { SigningRecommendations } from '@/components/signings/SigningRecommendat
 import { GoCollectImport } from '@/components/import/GoCollectImport';
 import { CSVImportWizard } from '@/components/import/CSVImportWizard';
 import { EmptyCollectionState } from '@/components/dashboard/EmptyCollectionState';
-import { CollectionPerformance } from '@/components/dashboard/CollectionPerformance';
 import { PortfolioChart } from '@/components/dashboard/PortfolioChart';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { Comic } from '@/types/comic';
-import { Library, DollarSign, Star, TrendingUp, Loader2, LogIn, RefreshCw, BookOpen, MoreHorizontal, Upload } from 'lucide-react';
+import { Library, DollarSign, Star, TrendingUp, Loader2, LogIn, RefreshCw, MoreHorizontal } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
+  DropdownMenuSeparator,
 } from '@/components/ui/dropdown-menu';
 
 interface DashboardProps {
@@ -65,13 +65,17 @@ export default function Dashboard({ onAddClick, onHuntingClick }: DashboardProps
   }, [user, stats.totalValue, stats.totalComics, gradedCount, keyIssueCount]);
   
   const formatCurrency = (value: number) => {
-    // Round to 2 decimal places first to fix floating point issues
     const roundedValue = Math.round(value * 100) / 100;
-    
     if (roundedValue >= 1000) {
       return `$${(roundedValue / 1000).toFixed(1)}k`;
     }
     return `$${roundedValue.toFixed(2)}`;
+  };
+
+  // Combined update handler
+  const handleUpdateCollection = async () => {
+    await refreshAllDetails();
+    await refreshAllValues();
   };
   
   // Show empty state if no comics
@@ -130,8 +134,9 @@ export default function Dashboard({ onAddClick, onHuntingClick }: DashboardProps
           </p>
         </div>
       )}
-      {/* Stats Grid - moved above hero on mobile */}
-      <section className="grid grid-cols-2 lg:grid-cols-4 gap-4 order-first sm:order-none">
+
+      {/* Stats Grid */}
+      <section className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="animate-slide-up stagger-1">
           <StatCard
             title="Total Comics"
@@ -170,7 +175,7 @@ export default function Dashboard({ onAddClick, onHuntingClick }: DashboardProps
         </div>
       </section>
 
-      {/* Portfolio Chart - 30-day value history */}
+      {/* ONE Portfolio Card - includes performance trend */}
       <section className="animate-slide-up stagger-5">
         <PortfolioChart 
           snapshots={snapshots} 
@@ -179,75 +184,52 @@ export default function Dashboard({ onAddClick, onHuntingClick }: DashboardProps
         />
       </section>
 
-      {/* Actions Menu - cleaned up layout */}
-      <section className="relative overflow-hidden rounded-2xl p-4 sm:p-6">
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-          <div className="flex-1 w-full sm:w-auto">
-            <CollectionPerformance />
-          </div>
-          
-          <div className="flex gap-2 w-full sm:w-auto">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={refreshAllDetails}
-              disabled={isRefreshingValues}
-              className="min-h-[44px] flex-1 sm:flex-none"
-            >
-              {isRefreshingValues ? (
-                <>
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  {refreshProgress.current}/{refreshProgress.total}
-                </>
-              ) : (
-                <>
-                  <BookOpen className="w-4 h-4 mr-2" />
-                  <span className="hidden sm:inline">Refresh Details</span>
-                  <span className="sm:hidden">Details</span>
-                </>
-              )}
+      {/* Actions Row - Simplified */}
+      <section className="flex items-center justify-end gap-2">
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={handleUpdateCollection}
+          disabled={isRefreshingValues}
+          className="min-h-[44px] gap-2"
+        >
+          {isRefreshingValues ? (
+            <>
+              <Loader2 className="w-4 h-4 animate-spin" />
+              {refreshProgress.current}/{refreshProgress.total}
+            </>
+          ) : (
+            <>
+              <RefreshCw className="w-4 h-4" />
+              Update Collection
+            </>
+          )}
+        </Button>
+        
+        {/* Overflow menu for advanced options */}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="outline" size="sm" className="min-h-[44px]">
+              <MoreHorizontal className="w-4 h-4" />
             </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={refreshAllValues}
-              disabled={isRefreshingValues}
-              className="min-h-[44px] flex-1 sm:flex-none"
-            >
-              {isRefreshingValues ? (
-                <>
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  {refreshProgress.current}/{refreshProgress.total}
-                </>
-              ) : (
-                <>
-                  <RefreshCw className="w-4 h-4 mr-2" />
-                  <span className="hidden sm:inline">Refresh Values</span>
-                  <span className="sm:hidden">Values</span>
-                </>
-              )}
-            </Button>
-            
-            {/* Actions dropdown with Import */}
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="sm" className="min-h-[44px]">
-                  <MoreHorizontal className="w-4 h-4" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-48">
-                <DropdownMenuItem asChild className="p-0">
-                  <CSVImportWizard onComplete={refetch} />
-                </DropdownMenuItem>
-                <DropdownMenuItem asChild className="p-0">
-                  <GoCollectImport onImportComplete={refetch} />
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
-        </div>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-48">
+            <DropdownMenuItem onClick={refreshAllDetails} disabled={isRefreshingValues}>
+              Update Metadata
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={refreshAllValues} disabled={isRefreshingValues}>
+              Update Prices
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem asChild className="p-0">
+              <CSVImportWizard onComplete={refetch} />
+            </DropdownMenuItem>
+            <DropdownMenuItem asChild className="p-0">
+              <GoCollectImport onImportComplete={refetch} />
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </section>
-      
       
       {/* Recent Additions */}
       <section className="space-y-4">
@@ -302,7 +284,7 @@ export default function Dashboard({ onAddClick, onHuntingClick }: DashboardProps
         </div>
       </section>
       
-      {/* Comic Detail Modal - Unified with Collection page */}
+      {/* Comic Detail Modal */}
       <ComicDetailModal
         comic={selectedComic}
         open={!!selectedComic}

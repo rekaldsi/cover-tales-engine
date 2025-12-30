@@ -1,8 +1,9 @@
 import { Comic, ERA_LABELS } from '@/types/comic';
 import { SlabbedCover } from './SlabbedCover';
 import { PenTool } from 'lucide-react';
-import { ConfidenceIndicator, getConfidenceLevel } from '@/components/ui/ConfidenceIndicator';
+import { ConfidenceIndicator } from '@/components/ui/ConfidenceIndicator';
 import { ValueRangeDisplay } from '@/components/ui/ValueRangeDisplay';
+import { getSlabPresentation } from '@/lib/slabPresentation';
 
 interface ComicCardProps {
   comic: Comic;
@@ -18,6 +19,15 @@ interface ExtendedComic extends Comic {
 
 export function ComicCard({ comic, onClick }: ComicCardProps) {
   const extComic = comic as ExtendedComic;
+  
+  // Use canonical slab presentation helper
+  const slab = getSlabPresentation({
+    gradeStatus: comic.gradeStatus,
+    grade: comic.grade,
+    labelType: comic.labelType,
+    signatureType: comic.signatureType,
+    isSigned: comic.isSigned,
+  });
     
   return (
     <article 
@@ -39,7 +49,7 @@ export function ComicCard({ comic, onClick }: ComicCardProps) {
         />
         
         {/* Signed Badge - only show for raw signed books (graded SS uses yellow slab) */}
-        {comic.isSigned && comic.gradeStatus === 'raw' && (
+        {slab.showSignedBadge && (
           <div className="absolute top-3 right-3 bg-comic-green text-white text-[10px] font-bold px-1.5 py-0.5 rounded flex items-center gap-1 shadow-md">
             <PenTool className="h-2.5 w-2.5" />
             SIGNED
