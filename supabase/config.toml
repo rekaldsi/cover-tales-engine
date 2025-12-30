@@ -68,3 +68,6 @@ verify_jwt = false
 
 [functions.fetch-convention-guests]
 verify_jwt = false
+
+[functions.fetch-gcd-data]
+verify_jwt = false
