@@ -1,9 +1,10 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useComicCollection } from '@/hooks/useComicCollection';
 import { useBackgroundEnrichment } from '@/hooks/useBackgroundEnrichment';
 import { useAuth } from '@/contexts/AuthContext';
 import { usePortfolioSnapshots } from '@/hooks/usePortfolioSnapshots';
+import { useRealtimeSnapshots } from '@/hooks/useRealtimeSnapshots';
 import { StatCard } from '@/components/comics/StatCard';
 import { EraChart } from '@/components/comics/EraChart';
 import { RecentlyAddedCarousel } from '@/components/comics/RecentlyAddedCarousel';
@@ -12,6 +13,7 @@ import { SigningRecommendations } from '@/components/signings/SigningRecommendat
 import { GoCollectImport } from '@/components/import/GoCollectImport';
 import { EmptyCollectionState } from '@/components/dashboard/EmptyCollectionState';
 import { CollectionPerformance } from '@/components/dashboard/CollectionPerformance';
+import { PortfolioChart } from '@/components/dashboard/PortfolioChart';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { Comic } from '@/types/comic';
@@ -32,9 +34,18 @@ export default function Dashboard({ onAddClick, onHuntingClick }: DashboardProps
   const { comics, getStats, deleteComic, updateComic, refetch, refreshAllValues, refreshAllDetails, isRefreshingValues, refreshProgress } = useComicCollection();
   const { progress, isEnriching } = useBackgroundEnrichment(comics, updateComic);
   const { user } = useAuth();
-  const { saveSnapshot } = usePortfolioSnapshots();
+  const { snapshots, trend, saveSnapshot, refetch: refetchSnapshots } = usePortfolioSnapshots();
   const navigate = useNavigate();
   const stats = getStats();
+
+  // Realtime subscriptions for live updates
+  const handleSnapshotChange = useCallback(() => {
+    refetchSnapshots();
+  }, [refetchSnapshots]);
+
+  useRealtimeSnapshots({
+    onSnapshotChange: handleSnapshotChange,
+  });
   const [selectedComic, setSelectedComic] = useState<Comic | null>(null);
   
   const keyIssueCount = comics.filter(c => c.isKeyIssue).length;
@@ -156,6 +167,15 @@ export default function Dashboard({ onAddClick, onHuntingClick }: DashboardProps
             accentColor="green"
           />
         </div>
+      </section>
+
+      {/* Portfolio Chart - 30-day value history */}
+      <section className="animate-slide-up stagger-5">
+        <PortfolioChart 
+          snapshots={snapshots} 
+          trend={trend} 
+          currentValue={stats.totalValue} 
+        />
       </section>
 
       {/* Actions Menu - cleaned up layout */}

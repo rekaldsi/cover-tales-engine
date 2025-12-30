@@ -353,6 +353,105 @@ export type Database = {
         }
         Relationships: []
       }
+      import_jobs: {
+        Row: {
+          column_mapping: Json | null
+          created_at: string
+          detected_columns: string[] | null
+          error_message: string | null
+          failed_rows: number
+          filename: string
+          id: string
+          processed_rows: number
+          status: string
+          successful_rows: number
+          total_rows: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          column_mapping?: Json | null
+          created_at?: string
+          detected_columns?: string[] | null
+          error_message?: string | null
+          failed_rows?: number
+          filename: string
+          id?: string
+          processed_rows?: number
+          status?: string
+          successful_rows?: number
+          total_rows?: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          column_mapping?: Json | null
+          created_at?: string
+          detected_columns?: string[] | null
+          error_message?: string | null
+          failed_rows?: number
+          filename?: string
+          id?: string
+          processed_rows?: number
+          status?: string
+          successful_rows?: number
+          total_rows?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      import_rows: {
+        Row: {
+          comic_id: string | null
+          created_at: string
+          error_message: string | null
+          id: string
+          import_job_id: string
+          parsed_data: Json | null
+          raw_data: Json
+          row_number: number
+          status: string
+        }
+        Insert: {
+          comic_id?: string | null
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          import_job_id: string
+          parsed_data?: Json | null
+          raw_data: Json
+          row_number: number
+          status?: string
+        }
+        Update: {
+          comic_id?: string | null
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          import_job_id?: string
+          parsed_data?: Json | null
+          raw_data?: Json
+          row_number?: number
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "import_rows_comic_id_fkey"
+            columns: ["comic_id"]
+            isOneToOne: false
+            referencedRelation: "comics"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "import_rows_import_job_id_fkey"
+            columns: ["import_job_id"]
+            isOneToOne: false
+            referencedRelation: "import_jobs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       integration_runs: {
         Row: {
           comic_id: string | null
@@ -430,6 +529,53 @@ export type Database = {
           provider?: string
         }
         Relationships: []
+      }
+      verification_results: {
+        Row: {
+          comic_id: string
+          confidence: number | null
+          id: string
+          match_score: number | null
+          matched_issue: Json | null
+          notes: string | null
+          provider: string
+          raw_response: Json | null
+          status: string
+          verified_at: string
+        }
+        Insert: {
+          comic_id: string
+          confidence?: number | null
+          id?: string
+          match_score?: number | null
+          matched_issue?: Json | null
+          notes?: string | null
+          provider: string
+          raw_response?: Json | null
+          status?: string
+          verified_at?: string
+        }
+        Update: {
+          comic_id?: string
+          confidence?: number | null
+          id?: string
+          match_score?: number | null
+          matched_issue?: Json | null
+          notes?: string | null
+          provider?: string
+          raw_response?: Json | null
+          status?: string
+          verified_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "verification_results_comic_id_fkey"
+            columns: ["comic_id"]
+            isOneToOne: false
+            referencedRelation: "comics"
+            referencedColumns: ["id"]
+          },
+        ]
       }
     }
     Views: {
