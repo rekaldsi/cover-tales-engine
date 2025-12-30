@@ -11,6 +11,7 @@ import SigningPlannerPage from "./pages/SigningPlannerPage";
 import InsightsPage from "./pages/InsightsPage";
 import Auth from "./pages/Auth";
 import NotFound from "./pages/NotFound";
+import DebugHealth from "./pages/DebugHealth";
 import { Loader2 } from "lucide-react";
 
 const queryClient = new QueryClient();
@@ -43,6 +44,7 @@ function AppRoutes() {
       <Route path="/creators" element={<ProtectedRoute><CreatorsPage /></ProtectedRoute>} />
       <Route path="/signings" element={<ProtectedRoute><SigningPlannerPage /></ProtectedRoute>} />
       <Route path="/insights" element={<ProtectedRoute><InsightsPage /></ProtectedRoute>} />
+      <Route path="/debug/health" element={<ProtectedRoute><DebugHealth /></ProtectedRoute>} />
       <Route path="*" element={<NotFound />} />
     </Routes>
   );
