@@ -353,6 +353,95 @@ export type Database = {
         }
         Relationships: []
       }
+      event_guests: {
+        Row: {
+          booth_info: string | null
+          confidence: number | null
+          created_at: string
+          event_id: string
+          guest_name: string
+          guest_role: string | null
+          id: string
+          notes: string | null
+          signing_fee: string | null
+          source: string | null
+        }
+        Insert: {
+          booth_info?: string | null
+          confidence?: number | null
+          created_at?: string
+          event_id: string
+          guest_name: string
+          guest_role?: string | null
+          id?: string
+          notes?: string | null
+          signing_fee?: string | null
+          source?: string | null
+        }
+        Update: {
+          booth_info?: string | null
+          confidence?: number | null
+          created_at?: string
+          event_id?: string
+          guest_name?: string
+          guest_role?: string | null
+          id?: string
+          notes?: string | null
+          signing_fee?: string | null
+          source?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_guests_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      events: {
+        Row: {
+          created_at: string
+          end_date: string | null
+          event_type: string
+          id: string
+          location: string | null
+          name: string
+          notes: string | null
+          start_date: string | null
+          updated_at: string
+          user_id: string
+          website_url: string | null
+        }
+        Insert: {
+          created_at?: string
+          end_date?: string | null
+          event_type?: string
+          id?: string
+          location?: string | null
+          name: string
+          notes?: string | null
+          start_date?: string | null
+          updated_at?: string
+          user_id: string
+          website_url?: string | null
+        }
+        Update: {
+          created_at?: string
+          end_date?: string | null
+          event_type?: string
+          id?: string
+          location?: string | null
+          name?: string
+          notes?: string | null
+          start_date?: string | null
+          updated_at?: string
+          user_id?: string
+          website_url?: string | null
+        }
+        Relationships: []
+      }
       import_jobs: {
         Row: {
           column_mapping: Json | null
@@ -529,6 +618,76 @@ export type Database = {
           provider?: string
         }
         Relationships: []
+      }
+      signing_recommendations: {
+        Row: {
+          comic_id: string
+          created_at: string
+          current_value: number | null
+          estimated_signed_value: number | null
+          event_id: string
+          guest_id: string | null
+          id: string
+          match_reason: string
+          notes: string | null
+          priority_score: number | null
+          status: string | null
+          user_id: string
+          value_uplift_percent: number | null
+        }
+        Insert: {
+          comic_id: string
+          created_at?: string
+          current_value?: number | null
+          estimated_signed_value?: number | null
+          event_id: string
+          guest_id?: string | null
+          id?: string
+          match_reason: string
+          notes?: string | null
+          priority_score?: number | null
+          status?: string | null
+          user_id: string
+          value_uplift_percent?: number | null
+        }
+        Update: {
+          comic_id?: string
+          created_at?: string
+          current_value?: number | null
+          estimated_signed_value?: number | null
+          event_id?: string
+          guest_id?: string | null
+          id?: string
+          match_reason?: string
+          notes?: string | null
+          priority_score?: number | null
+          status?: string | null
+          user_id?: string
+          value_uplift_percent?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "signing_recommendations_comic_id_fkey"
+            columns: ["comic_id"]
+            isOneToOne: false
+            referencedRelation: "comics"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "signing_recommendations_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "signing_recommendations_guest_id_fkey"
+            columns: ["guest_id"]
+            isOneToOne: false
+            referencedRelation: "event_guests"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       verification_results: {
         Row: {
