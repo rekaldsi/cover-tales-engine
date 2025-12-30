@@ -1,9 +1,10 @@
 import { Comic, ERA_LABELS } from '@/types/comic';
 import { SlabbedCover } from './SlabbedCover';
-import { PenTool } from 'lucide-react';
+import { Pen } from 'lucide-react';
 import { ConfidenceIndicator } from '@/components/ui/ConfidenceIndicator';
 import { ValueRangeDisplay } from '@/components/ui/ValueRangeDisplay';
 import { getSlabPresentation } from '@/lib/slabPresentation';
+import { getSignerNames } from '@/lib/signatureHelpers';
 
 interface ComicCardProps {
   comic: Comic;
@@ -28,6 +29,11 @@ export function ComicCard({ comic, onClick }: ComicCardProps) {
     signatureType: comic.signatureType,
     isSigned: comic.isSigned,
   });
+  
+  // Get signer names - only show pills for raw signed books
+  // Graded SS books use yellow slab instead
+  const signerNames = comic.gradeStatus === 'raw' ? getSignerNames(comic) : [];
+  const showSignerPills = signerNames.length > 0;
     
   return (
     <article 
@@ -47,14 +53,6 @@ export function ComicCard({ comic, onClick }: ComicCardProps) {
           labelType={comic.labelType}
           signatureType={comic.signatureType}
         />
-        
-        {/* Signed Badge - only show for raw signed books (graded SS uses yellow slab) */}
-        {slab.showSignedBadge && (
-          <div className="absolute top-3 right-3 bg-comic-green text-white text-[10px] font-bold px-1.5 py-0.5 rounded flex items-center gap-1 shadow-md">
-            <PenTool className="h-2.5 w-2.5" />
-            SIGNED
-          </div>
-        )}
       </div>
       
       {/* Info - simplified */}
@@ -67,6 +65,21 @@ export function ComicCard({ comic, onClick }: ComicCardProps) {
             #{comic.issueNumber} {comic.variant && `• ${comic.variant}`}
           </p>
         </div>
+        
+        {/* Signer Pills - replaces generic SIGNED badge */}
+        {showSignerPills && (
+          <div className="flex flex-wrap gap-1">
+            {signerNames.map((name, index) => (
+              <span
+                key={`${name}-${index}`}
+                className="inline-flex items-center gap-0.5 bg-primary/10 text-primary border border-primary/30 text-[10px] px-1.5 py-0.5 rounded"
+              >
+                <Pen className="h-2.5 w-2.5" />
+                {name}
+              </span>
+            ))}
+          </div>
+        )}
         
         <div className="flex items-center justify-between pt-0.5">
           <span className="text-[10px] text-muted-foreground/70 uppercase tracking-wide">

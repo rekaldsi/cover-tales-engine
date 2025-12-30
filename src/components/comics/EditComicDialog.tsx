@@ -6,9 +6,9 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Comic, PUBLISHERS, GradeStatus, GRADE_OPTIONS, SignatureType } from '@/types/comic';
+import { Comic, PUBLISHERS, GradeStatus, GRADE_OPTIONS, SignatureType, Signature, SIGNATURE_TYPE_LABELS } from '@/types/comic';
 import { DateInput } from '@/components/ui/DateInput';
-import { format } from 'date-fns';
+import { X, Plus } from 'lucide-react';
 
 interface EditComicDialogProps {
   comic: Comic;
@@ -17,12 +17,38 @@ interface EditComicDialogProps {
   onSave: (updates: Partial<Comic>) => Promise<void>;
 }
 
-const SIGNATURE_TYPES: { value: SignatureType; label: string }[] = [
-  { value: 'witnessed', label: 'Witnessed' },
-  { value: 'cgc_ss', label: 'CGC Signature Series' },
-  { value: 'cbcs_verified', label: 'CBCS Verified' },
-  { value: 'unverified', label: 'Unverified' },
-];
+const SIGNATURE_TYPES = Object.entries(SIGNATURE_TYPE_LABELS).map(([value, label]) => ({
+  value: value as SignatureType,
+  label,
+}));
+
+function createEmptySignature(): Signature {
+  return {
+    id: crypto.randomUUID(),
+    signedBy: '',
+    signedDate: undefined,
+    signatureType: 'unverified' as SignatureType,
+  };
+}
+
+function getInitialSignatures(comic: Comic): Signature[] {
+  // Check modern signatures array first
+  if (comic.signatures && Array.isArray(comic.signatures) && comic.signatures.length > 0) {
+    return comic.signatures;
+  }
+  
+  // Fall back to legacy fields
+  if (comic.isSigned && comic.signedBy) {
+    return [{
+      id: crypto.randomUUID(),
+      signedBy: comic.signedBy,
+      signedDate: comic.signedDate,
+      signatureType: comic.signatureType || 'unverified',
+    }];
+  }
+  
+  return [];
+}
 
 export function EditComicDialog({ comic, open, onOpenChange, onSave }: EditComicDialogProps) {
   const [isLoading, setIsLoading] = useState(false);
@@ -44,12 +70,10 @@ export function EditComicDialog({ comic, open, onOpenChange, onSave }: EditComic
     certNumber: '',
     purchasePrice: '',
     currentValue: '',
-    // Signature fields
     isSigned: false,
-    signedBy: '',
-    signedDate: '',
-    signatureType: 'witnessed' as SignatureType,
   });
+  
+  const [signatures, setSignatures] = useState<Signature[]>([]);
 
   // Sync form data when comic changes
   useEffect(() => {
@@ -72,12 +96,11 @@ export function EditComicDialog({ comic, open, onOpenChange, onSave }: EditComic
         certNumber: comic.certNumber || '',
         purchasePrice: comic.purchasePrice?.toString() || '',
         currentValue: comic.currentValue?.toString() || '',
-        // Signature fields
         isSigned: comic.isSigned || false,
-        signedBy: comic.signedBy || '',
-        signedDate: comic.signedDate || '',
-        signatureType: comic.signatureType || 'witnessed',
       });
+      
+      const initialSigs = getInitialSignatures(comic);
+      setSignatures(initialSigs);
     }
   }, [comic, open]);
 
@@ -88,11 +111,28 @@ export function EditComicDialog({ comic, open, onOpenChange, onSave }: EditComic
     formData.coverArtist,
   ].filter((s): s is string => !!s && s.trim() !== '');
 
+  const handleAddSignature = () => {
+    setSignatures(prev => [...prev, createEmptySignature()]);
+  };
+
+  const handleRemoveSignature = (id: string) => {
+    setSignatures(prev => prev.filter(s => s.id !== id));
+  };
+
+  const handleUpdateSignature = (id: string, field: keyof Signature, value: string | undefined) => {
+    setSignatures(prev => prev.map(s => 
+      s.id === id ? { ...s, [field]: value } : s
+    ));
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
 
     try {
+      // Filter out empty signatures
+      const validSignatures = signatures.filter(s => s.signedBy?.trim());
+      
       const updates: Partial<Comic> = {
         title: formData.title,
         issueNumber: formData.issueNumber,
@@ -112,10 +152,12 @@ export function EditComicDialog({ comic, open, onOpenChange, onSave }: EditComic
         purchasePrice: formData.purchasePrice ? parseFloat(formData.purchasePrice) : undefined,
         currentValue: formData.currentValue ? parseFloat(formData.currentValue) : undefined,
         // Signature fields
-        isSigned: formData.isSigned,
-        signedBy: formData.isSigned ? formData.signedBy : undefined,
-        signedDate: formData.isSigned ? formData.signedDate : undefined,
-        signatureType: formData.isSigned ? formData.signatureType : undefined,
+        isSigned: formData.isSigned && validSignatures.length > 0,
+        signatures: validSignatures,
+        // Also update legacy fields for backward compatibility
+        signedBy: validSignatures[0]?.signedBy || undefined,
+        signedDate: validSignatures[0]?.signedDate || undefined,
+        signatureType: validSignatures[0]?.signatureType || undefined,
       };
 
       await onSave(updates);
@@ -342,7 +384,12 @@ export function EditComicDialog({ comic, open, onOpenChange, onSave }: EditComic
               <Switch
                 id="isSigned"
                 checked={formData.isSigned}
-                onCheckedChange={(checked) => setFormData(prev => ({ ...prev, isSigned: checked }))}
+                onCheckedChange={(checked) => {
+                  setFormData(prev => ({ ...prev, isSigned: checked }));
+                  if (checked && signatures.length === 0) {
+                    setSignatures([createEmptySignature()]);
+                  }
+                }}
               />
               <Label htmlFor="isSigned" className="cursor-pointer flex-1 font-medium">
                 Signed
@@ -351,54 +398,78 @@ export function EditComicDialog({ comic, open, onOpenChange, onSave }: EditComic
 
             {formData.isSigned && (
               <div className="space-y-3 pt-2">
-                <div>
-                  <Label htmlFor="signedBy" className="text-xs">Signed By</Label>
-                  <Input
-                    id="signedBy"
-                    value={formData.signedBy}
-                    onChange={(e) => setFormData(prev => ({ ...prev, signedBy: e.target.value }))}
-                    placeholder="Enter signer's name"
-                  />
-                  {suggestedSigners.length > 0 && (
-                    <div className="flex flex-wrap gap-1 mt-1">
-                      {suggestedSigners.map((signer) => (
+                {signatures.map((sig, index) => (
+                  <div key={sig.id} className="space-y-2 p-2 bg-background/50 rounded border border-border/50">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs text-muted-foreground">Signature {index + 1}</span>
+                      {signatures.length > 1 && (
                         <Button
-                          key={signer}
                           type="button"
-                          variant="outline"
+                          variant="ghost"
                           size="sm"
-                          onClick={() => setFormData(prev => ({ ...prev, signedBy: signer }))}
-                          className="text-xs h-6 px-2"
+                          onClick={() => handleRemoveSignature(sig.id)}
+                          className="h-6 w-6 p-0 text-muted-foreground hover:text-destructive"
                         >
-                          {signer}
+                          <X className="h-3.5 w-3.5" />
                         </Button>
-                      ))}
+                      )}
                     </div>
-                  )}
-                </div>
+                    
+                    <div>
+                      <Label htmlFor={`signedBy-${sig.id}`} className="text-xs">Signed By</Label>
+                      <Input
+                        id={`signedBy-${sig.id}`}
+                        value={sig.signedBy || ''}
+                        onChange={(e) => handleUpdateSignature(sig.id, 'signedBy', e.target.value)}
+                        placeholder="Enter signer's name"
+                        list={`signers-${sig.id}`}
+                      />
+                      {suggestedSigners.length > 0 && (
+                        <datalist id={`signers-${sig.id}`}>
+                          {suggestedSigners.map((name) => (
+                            <option key={name} value={name} />
+                          ))}
+                        </datalist>
+                      )}
+                    </div>
 
-                <DateInput
-                  label="Signature Date"
-                  value={formData.signedDate}
-                  onChange={(value) => setFormData(prev => ({ ...prev, signedDate: value }))}
-                />
+                    <div className="grid grid-cols-2 gap-2">
+                      <DateInput
+                        label="Signature Date"
+                        value={sig.signedDate}
+                        onChange={(value) => handleUpdateSignature(sig.id, 'signedDate', value)}
+                      />
 
-                <div>
-                  <Label className="text-xs">Signature Type</Label>
-                  <Select 
-                    value={formData.signatureType} 
-                    onValueChange={(v) => setFormData(prev => ({ ...prev, signatureType: v as SignatureType }))}
-                  >
-                    <SelectTrigger className="bg-background">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent className="bg-popover">
-                      {SIGNATURE_TYPES.map((type) => (
-                        <SelectItem key={type.value} value={type.value}>{type.label}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
+                      <div>
+                        <Label className="text-xs">Signature Type</Label>
+                        <Select 
+                          value={sig.signatureType || 'unverified'} 
+                          onValueChange={(v) => handleUpdateSignature(sig.id, 'signatureType', v)}
+                        >
+                          <SelectTrigger className="bg-background h-9">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent className="bg-popover">
+                            {SIGNATURE_TYPES.map((type) => (
+                              <SelectItem key={type.value} value={type.value}>{type.label}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+                
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={handleAddSignature}
+                  className="w-full"
+                >
+                  <Plus className="h-4 w-4 mr-2" />
+                  Add Another Signature
+                </Button>
               </div>
             )}
           </div>
