@@ -50,3 +50,12 @@ verify_jwt = false
 
 [functions.scheduled-value-refresh]
 verify_jwt = false
+
+[functions.enrich-credits]
+verify_jwt = false
+
+[functions.verify-comic-image]
+verify_jwt = false
+
+[functions.extract-slab-label]
+verify_jwt = false

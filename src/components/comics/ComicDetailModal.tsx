@@ -4,10 +4,12 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Comic, ERA_LABELS, SignatureType, Signature, SIGNATURE_TYPE_LABELS } from '@/types/comic';
-import { Star, Award, Calendar, User, MapPin, Trash2, Loader2, PenTool, CheckCircle2, ShieldCheck, Settings, Edit, Palette, BookOpen, X, FileText, Users, ChevronDown, ChevronUp } from 'lucide-react';
+import { Star, Award, Calendar, User, MapPin, Trash2, Loader2, PenTool, CheckCircle2, ShieldCheck, Settings, Edit, Palette, BookOpen, X, FileText, Users, ChevronDown, ChevronUp, TrendingUp } from 'lucide-react';
 import { ConfidenceIndicator, getConfidenceLevel, getConfidenceLabel } from '@/components/ui/ConfidenceIndicator';
 import { ValueRangeDisplay, formatCurrencyFull } from '@/components/ui/ValueRangeDisplay';
+import { ValueHistoryChart } from './ValueHistoryChart';
 import { useComicEnrichment } from '@/hooks/useComicEnrichment';
+import { useValueHistory } from '@/hooks/useValueHistory';
 import { MarkAsSignedDialog } from './MarkAsSignedDialog';
 import { EditComicDialog } from './EditComicDialog';
 import { ShouldIGradeThis } from '@/components/insights/ShouldIGradeThis';
@@ -27,11 +29,14 @@ interface ComicDetailModalProps {
 export function ComicDetailModal({ comic, open, onOpenChange, onDelete, onUpdate }: ComicDetailModalProps) {
   const { enrichComic, needsEnrichment, isEnriching } = useComicEnrichment();
   const { verifyCert, isVerifying } = useCertVerification();
+  const { getComicValueHistory, calculateValueChange, isLoading: isLoadingHistory } = useValueHistory();
   const [enrichedComic, setEnrichedComic] = useState<Comic | null>(null);
   const [signDialogOpen, setSignDialogOpen] = useState(false);
   const [gradingFormOpen, setGradingFormOpen] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [synopsisOpen, setSynopsisOpen] = useState(false);
+  const [valueHistory, setValueHistory] = useState<any[]>([]);
+  const [valueChange, setValueChange] = useState<any>(null);
 
   // Auto-enrich when modal opens
   useEffect(() => {
@@ -39,6 +44,19 @@ export function ComicDetailModal({ comic, open, onOpenChange, onDelete, onUpdate
       enrichComic(comic, onUpdate).then(setEnrichedComic);
     } else if (comic) {
       setEnrichedComic(comic);
+    }
+  }, [open, comic?.id]);
+
+  // Fetch value history when modal opens
+  useEffect(() => {
+    if (open && comic) {
+      getComicValueHistory(comic.id, 90).then(history => {
+        setValueHistory(history);
+        setValueChange(calculateValueChange(history));
+      });
+    } else {
+      setValueHistory([]);
+      setValueChange(null);
     }
   }, [open, comic?.id]);
 
@@ -242,6 +260,21 @@ export function ComicDetailModal({ comic, open, onOpenChange, onDelete, onUpdate
                           <p className={`text-lg font-display ${profit >= 0 ? 'text-comic-green' : 'text-destructive'}`}>
                             {profit >= 0 ? '+' : ''}{formatCurrency(profit)}
                           </p>
+                        </div>
+                      )}
+                      
+                      {/* Value History Chart */}
+                      {valueHistory.length > 0 && (
+                        <div className="stat-card p-3">
+                          <p className="text-xs text-muted-foreground uppercase tracking-wider mb-2 flex items-center gap-1">
+                            <TrendingUp className="h-3 w-3" />
+                            Value History
+                          </p>
+                          <ValueHistoryChart 
+                            history={valueHistory} 
+                            valueChange={valueChange} 
+                            currentValue={displayComic.currentValue} 
+                          />
                         </div>
                       )}
                     </div>
