@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Search, Users, Book, Star, DollarSign } from 'lucide-react';
+import { Search, Users, Book, Star, DollarSign, RefreshCw, AlertCircle, Loader2 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -11,7 +11,9 @@ import { CreatorCard } from '@/components/creators/CreatorCard';
 import { ComicCard } from '@/components/comics/ComicCard';
 import { ComicDetailSheet } from '@/components/comics/ComicDetailSheet';
 import { useCreators, CreatorAggregate } from '@/hooks/useCreators';
+import { useCreatorEnrichment } from '@/hooks/useCreatorEnrichment';
 import { Comic } from '@/types/comic';
+import { toast } from 'sonner';
 
 interface CreatorsProps {
   comics: Comic[];
@@ -31,6 +33,16 @@ export function Creators({ comics, onUpdateComic }: CreatorsProps) {
   const [roleFilter, setRoleFilter] = useState<'all' | 'writer' | 'artist' | 'coverArtist'>('all');
   
   const { creators, searchCreators } = useCreators(comics);
+  const { runEnrichment, isEnriching, progress, error: enrichmentError } = useCreatorEnrichment();
+
+  const handleEnrichCreators = async () => {
+    const result = await runEnrichment();
+    if (result.success) {
+      toast.success(`Enriched ${result.data?.enriched || 0} comics with creator data`);
+    } else {
+      toast.error(result.error || 'Failed to enrich creator data');
+    }
+  };
 
   const filteredCreators = useMemo(() => {
     let result = search ? searchCreators(search) : creators;
@@ -151,7 +163,37 @@ export function Creators({ comics, onUpdateComic }: CreatorsProps) {
         ))}
       </div>
 
-      {filteredCreators.length === 0 && (
+      {filteredCreators.length === 0 && comics.length > 0 && creators.length === 0 && (
+        <div className="text-center py-12 glass-panel rounded-xl">
+          <AlertCircle className="w-12 h-12 mx-auto mb-4 text-muted-foreground opacity-50" />
+          <h3 className="text-lg font-semibold mb-2">Creator credits aren't fully enriched yet</h3>
+          <p className="text-muted-foreground text-sm mb-6 max-w-md mx-auto">
+            Run creator enrichment to fetch writer, artist, and cover artist data from ComicVine and Metron.
+          </p>
+          <Button 
+            onClick={handleEnrichCreators} 
+            disabled={isEnriching}
+            className="gap-2"
+          >
+            {isEnriching ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                Enriching{progress ? ` (${progress.processed}/${progress.total})` : '...'}
+              </>
+            ) : (
+              <>
+                <RefreshCw className="w-4 h-4" />
+                Run Creator Enrichment
+              </>
+            )}
+          </Button>
+          {enrichmentError && (
+            <p className="text-destructive text-sm mt-4">{enrichmentError}</p>
+          )}
+        </div>
+      )}
+
+      {filteredCreators.length === 0 && (creators.length > 0 || comics.length === 0) && (
         <div className="text-center py-12 text-muted-foreground">
           <Users className="w-12 h-12 mx-auto mb-4 opacity-50" />
           <p>No creators found</p>

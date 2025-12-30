@@ -117,6 +117,59 @@ export type Database = {
           },
         ]
       }
+      comic_value_sources: {
+        Row: {
+          comic_id: string
+          comps: Json | null
+          confidence: number | null
+          error_reason: string | null
+          fetched_at: string | null
+          grade_context: string | null
+          id: string
+          provider: string
+          range_high: number | null
+          range_low: number | null
+          status: string
+          value: number | null
+        }
+        Insert: {
+          comic_id: string
+          comps?: Json | null
+          confidence?: number | null
+          error_reason?: string | null
+          fetched_at?: string | null
+          grade_context?: string | null
+          id?: string
+          provider: string
+          range_high?: number | null
+          range_low?: number | null
+          status: string
+          value?: number | null
+        }
+        Update: {
+          comic_id?: string
+          comps?: Json | null
+          confidence?: number | null
+          error_reason?: string | null
+          fetched_at?: string | null
+          grade_context?: string | null
+          id?: string
+          provider?: string
+          range_high?: number | null
+          range_low?: number | null
+          status?: string
+          value?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "comic_value_sources_comic_id_fkey"
+            columns: ["comic_id"]
+            isOneToOne: false
+            referencedRelation: "comics"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       comics: {
         Row: {
           artist: string | null
@@ -345,6 +398,36 @@ export type Database = {
           status?: string
           summary?: Json | null
           user_id?: string | null
+        }
+        Relationships: []
+      }
+      pricing_providers: {
+        Row: {
+          enabled: boolean
+          error_rate_24h: number | null
+          last_error_at: string | null
+          last_ok_at: string | null
+          method: string
+          notes: string | null
+          provider: string
+        }
+        Insert: {
+          enabled?: boolean
+          error_rate_24h?: number | null
+          last_error_at?: string | null
+          last_ok_at?: string | null
+          method: string
+          notes?: string | null
+          provider: string
+        }
+        Update: {
+          enabled?: boolean
+          error_rate_24h?: number | null
+          last_error_at?: string | null
+          last_ok_at?: string | null
+          method?: string
+          notes?: string | null
+          provider?: string
         }
         Relationships: []
       }
