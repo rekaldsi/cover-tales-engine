@@ -303,7 +303,7 @@ Deno.serve(async (req) => {
 
     let enriched = 0;
     let failed = 0;
-    const results: { comicId: string; status: string; source?: string; creditsCount?: number }[] = [];
+    const results: { comicId: string; status: string; source?: string; creditsCount?: number; error?: string }[] = [];
 
     for (const comic of comics as ComicForEnrichment[]) {
       // Rate limiting - 2 second delay between API calls
@@ -347,10 +347,20 @@ Deno.serve(async (req) => {
         continue;
       }
 
+      // Filter out any credits with null/empty names before inserting
+      const validCredits = credits.filter(c => c.name && c.name.trim() !== '');
+      
+      if (validCredits.length === 0) {
+        console.log(`[${requestId}] No valid credits after filtering for ${comic.id}`);
+        failed++;
+        results.push({ comicId: comic.id, status: 'no_valid_credits' });
+        continue;
+      }
+
       // Insert credits into comic_creators table
-      const creatorRows = credits.map(c => ({
+      const creatorRows = validCredits.map(c => ({
         comic_id: comic.id,
-        name: c.name,
+        name: c.name.trim(),
         role: c.role,
         source: c.source,
         confidence: c.confidence,
@@ -363,19 +373,20 @@ Deno.serve(async (req) => {
 
       if (insertError) {
         console.error(`[${requestId}] Failed to insert credits for ${comic.id}:`, insertError);
+        console.error(`[${requestId}] Rows attempted:`, JSON.stringify(creatorRows));
         failed++;
-        results.push({ comicId: comic.id, status: 'insert_failed' });
+        results.push({ comicId: comic.id, status: 'insert_failed', error: insertError.message });
         continue;
       }
 
-      // Update comic record with primary creators and source
-      const writer = credits.find(c => c.role === 'writer')?.name || comic.writer;
-      const artist = credits.find(c => c.role === 'artist')?.name || comic.artist;
-      const coverArtist = credits.find(c => c.role === 'cover_artist')?.name || comic.cover_artist;
-      const inker = credits.find(c => c.role === 'inker')?.name;
-      const colorist = credits.find(c => c.role === 'colorist')?.name;
-      const letterer = credits.find(c => c.role === 'letterer')?.name;
-      const editor = credits.find(c => c.role === 'editor')?.name;
+      // Update comic record with primary creators and source (use validCredits)
+      const writer = validCredits.find(c => c.role === 'writer')?.name || comic.writer;
+      const artist = validCredits.find(c => c.role === 'artist')?.name || comic.artist;
+      const coverArtist = validCredits.find(c => c.role === 'cover_artist')?.name || comic.cover_artist;
+      const inker = validCredits.find(c => c.role === 'inker')?.name;
+      const colorist = validCredits.find(c => c.role === 'colorist')?.name;
+      const letterer = validCredits.find(c => c.role === 'letterer')?.name;
+      const editor = validCredits.find(c => c.role === 'editor')?.name;
 
       const updateData: Record<string, any> = {
         credits_source: creditsSource,
@@ -404,10 +415,10 @@ Deno.serve(async (req) => {
         comicId: comic.id, 
         status: 'enriched', 
         source: creditsSource, 
-        creditsCount: credits.length 
+        creditsCount: validCredits.length 
       });
 
-      console.log(`[${requestId}] Enriched ${comic.title} #${comic.issue_number}: ${credits.length} credits from ${creditsSource}`);
+      console.log(`[${requestId}] Enriched ${comic.title} #${comic.issue_number}: ${validCredits.length} credits from ${creditsSource}`);
     }
 
     console.log(`[${requestId}] Enrichment complete: ${enriched} enriched, ${failed} failed`);

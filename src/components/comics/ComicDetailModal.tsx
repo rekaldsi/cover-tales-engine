@@ -98,17 +98,53 @@ export function ComicDetailModal({ comic, open, onOpenChange, onDelete, onUpdate
   const handleRetryCreditsLookup = async () => {
     setIsEnrichingCredits(true);
     try {
-      const { error } = await supabase.functions.invoke('enrich-credits', {
-        body: { comicIds: [displayComic.id] }
+      // Try enrich-credits first (ComicVine + Metron)
+      const { data, error } = await supabase.functions.invoke('enrich-credits', {
+        body: { comic_ids: [displayComic.id] }
       });
-      if (error) throw error;
-      toast.success('Credits lookup initiated');
-      // Re-fetch comic data
+      
+      if (!error && data?.enriched > 0) {
+        toast.success(`Found ${data.results?.[0]?.creditsCount || 0} creator credits`);
+      } else {
+        // Fallback to GCD
+        const { data: gcdData } = await supabase.functions.invoke('fetch-gcd-data', {
+          body: {
+            title: displayComic.title,
+            issue_number: displayComic.issueNumber,
+            publisher: displayComic.publisher,
+          }
+        });
+
+        if (gcdData?.success && gcdData.credits?.length > 0) {
+          const writer = gcdData.credits.find((c: any) => c.role === 'writer')?.name;
+          const artist = gcdData.credits.find((c: any) => c.role === 'artist')?.name;
+          
+          if (writer || artist) {
+            await onUpdate(displayComic.id, { 
+              writer: writer || displayComic.writer, 
+              artist: artist || displayComic.artist 
+            });
+            setEnrichedComic(prev => prev ? {
+              ...prev,
+              writer: writer || prev.writer,
+              artist: artist || prev.artist,
+            } : null);
+            toast.success(`Found ${gcdData.credits.length} creator credits from GCD`);
+          } else {
+            toast.error('No credits found in any source');
+          }
+        } else {
+          toast.error('No credits found in any source');
+        }
+      }
+      
+      // Re-fetch comic data to get updated credits
       if (comic) {
         const enriched = await enrichComic(comic, onUpdate);
         if (enriched) setEnrichedComic(enriched);
       }
     } catch (err) {
+      console.error('Credits lookup error:', err);
       toast.error('Failed to lookup credits');
     } finally {
       setIsEnrichingCredits(false);
