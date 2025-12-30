@@ -1,21 +1,23 @@
 import { Comic, ERA_LABELS } from '@/types/comic';
 import { SlabbedCover } from './SlabbedCover';
 import { PenTool } from 'lucide-react';
+import { ConfidenceIndicator, getConfidenceLevel } from '@/components/ui/ConfidenceIndicator';
+import { ValueRangeDisplay } from '@/components/ui/ValueRangeDisplay';
 
 interface ComicCardProps {
   comic: Comic;
   onClick: () => void;
 }
 
+// Extended comic type to include DB fields that may not be in frontend type yet
+interface ExtendedComic extends Comic {
+  confidenceScore?: number;
+  valueRangeLow?: number;
+  valueRangeHigh?: number;
+}
+
 export function ComicCard({ comic, onClick }: ComicCardProps) {
-  const formattedValue = comic.currentValue 
-    ? new Intl.NumberFormat('en-US', { 
-        style: 'currency', 
-        currency: 'USD',
-        minimumFractionDigits: 0,
-        maximumFractionDigits: 0,
-      }).format(comic.currentValue)
-    : null;
+  const extComic = comic as ExtendedComic;
     
   return (
     <article 
@@ -60,10 +62,18 @@ export function ComicCard({ comic, onClick }: ComicCardProps) {
           <span className="text-[10px] text-muted-foreground/70 uppercase tracking-wide">
             {ERA_LABELS[comic.era]}
           </span>
-          {formattedValue && (
-            <span className="text-xs font-semibold text-accent">
-              {formattedValue}
-            </span>
+          {extComic.currentValue && (
+            <div className="flex items-center gap-1">
+              <ValueRangeDisplay 
+                value={extComic.currentValue}
+                rangeLow={extComic.valueRangeLow || extComic.valueRange?.low}
+                rangeHigh={extComic.valueRangeHigh || extComic.valueRange?.high}
+                size="sm"
+              />
+              {extComic.confidenceScore !== undefined && (
+                <ConfidenceIndicator score={extComic.confidenceScore} size="sm" />
+              )}
+            </div>
           )}
         </div>
         
