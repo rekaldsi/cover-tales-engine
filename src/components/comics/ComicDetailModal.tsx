@@ -3,20 +3,22 @@ import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Comic, ERA_LABELS, SignatureType, Signature, SIGNATURE_TYPE_LABELS } from '@/types/comic';
-import { Star, Award, Calendar, User, MapPin, Trash2, Loader2, PenTool, CheckCircle2, ShieldCheck, Settings, Edit, Palette, BookOpen, X, FileText, Users, ChevronDown, ChevronUp, TrendingUp } from 'lucide-react';
-import { ConfidenceIndicator, getConfidenceLevel, getConfidenceLabel } from '@/components/ui/ConfidenceIndicator';
-import { ValueRangeDisplay, formatCurrencyFull } from '@/components/ui/ValueRangeDisplay';
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
+import { Comic, ERA_LABELS, SignatureType, Signature, SIGNATURE_TYPE_LABELS, PAGE_QUALITY_LABELS } from '@/types/comic';
+import { Star, Calendar, User, MapPin, Trash2, Loader2, PenTool, Edit, Palette, BookOpen, X, FileText, Users, TrendingUp, DollarSign, ExternalLink, RefreshCw, ShieldCheck } from 'lucide-react';
+import { ConfidenceIndicator, getConfidenceLabel } from '@/components/ui/ConfidenceIndicator';
 import { ValueHistoryChart } from './ValueHistoryChart';
 import { useComicEnrichment } from '@/hooks/useComicEnrichment';
 import { useValueHistory } from '@/hooks/useValueHistory';
 import { MarkAsSignedDialog } from './MarkAsSignedDialog';
 import { EditComicDialog } from './EditComicDialog';
 import { ShouldIGradeThis } from '@/components/insights/ShouldIGradeThis';
-import { GradingDetails } from './GradingDetails';
 import { GradingDetailsForm } from './GradingDetailsForm';
 import { useCertVerification } from '@/hooks/useCertVerification';
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { getSlabPresentation, getCertVerificationUrl } from '@/lib/slabPresentation';
+import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
+import { cn } from '@/lib/utils';
 
 interface ComicDetailModalProps {
   comic: Comic | null;
@@ -34,9 +36,9 @@ export function ComicDetailModal({ comic, open, onOpenChange, onDelete, onUpdate
   const [signDialogOpen, setSignDialogOpen] = useState(false);
   const [gradingFormOpen, setGradingFormOpen] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
-  const [synopsisOpen, setSynopsisOpen] = useState(false);
   const [valueHistory, setValueHistory] = useState<any[]>([]);
   const [valueChange, setValueChange] = useState<any>(null);
+  const [isEnrichingCredits, setIsEnrichingCredits] = useState(false);
 
   // Auto-enrich when modal opens
   useEffect(() => {
@@ -60,11 +62,18 @@ export function ComicDetailModal({ comic, open, onOpenChange, onDelete, onUpdate
     }
   }, [open, comic?.id]);
 
-  // Use enriched data if available, otherwise use original
   const displayComic = enrichedComic || comic;
-  
   if (!displayComic) return null;
   
+  // Get canonical slab presentation
+  const slab = getSlabPresentation({
+    gradeStatus: displayComic.gradeStatus,
+    grade: displayComic.grade,
+    labelType: displayComic.labelType,
+    signatureType: displayComic.signatureType,
+    isSigned: displayComic.isSigned,
+  });
+
   const formatCurrency = (value?: number) => {
     if (!value) return null;
     return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(value);
@@ -82,6 +91,29 @@ export function ComicDetailModal({ comic, open, onOpenChange, onDelete, onUpdate
   const profit = displayComic.currentValue && displayComic.purchasePrice 
     ? displayComic.currentValue - displayComic.purchasePrice 
     : null;
+
+  const hasCreators = displayComic.writer || displayComic.artist || displayComic.coverArtist || 
+                      displayComic.colorist || displayComic.inker || displayComic.letterer;
+
+  const handleRetryCreditsLookup = async () => {
+    setIsEnrichingCredits(true);
+    try {
+      const { error } = await supabase.functions.invoke('enrich-credits', {
+        body: { comicIds: [displayComic.id] }
+      });
+      if (error) throw error;
+      toast.success('Credits lookup initiated');
+      // Re-fetch comic data
+      if (comic) {
+        const enriched = await enrichComic(comic, onUpdate);
+        if (enriched) setEnrichedComic(enriched);
+      }
+    } catch (err) {
+      toast.error('Failed to lookup credits');
+    } finally {
+      setIsEnrichingCredits(false);
+    }
+  };
 
   const handleMarkAsSigned = async (signatures: Signature[]) => {
     const firstSig = signatures[0];
@@ -152,6 +184,15 @@ export function ComicDetailModal({ comic, open, onOpenChange, onDelete, onUpdate
     await onUpdate(displayComic.id, updates);
     setEnrichedComic(prev => prev ? { ...prev, ...updates } : null);
   };
+
+  const certUrl = displayComic.certNumber 
+    ? getCertVerificationUrl(displayComic.gradeStatus, displayComic.certNumber) 
+    : null;
+
+  const extComic = displayComic as any;
+  const confidenceScore = extComic.confidenceScore;
+  const valueRangeLow = extComic.valueRangeLow || displayComic.valueRange?.low;
+  const valueRangeHigh = extComic.valueRangeHigh || displayComic.valueRange?.high;
   
   return (
     <>
@@ -177,12 +218,12 @@ export function ComicDetailModal({ comic, open, onOpenChange, onDelete, onUpdate
               {isEnriching && (
                 <div className="flex items-center gap-2 text-sm text-muted-foreground mb-4 p-2 bg-secondary/50 rounded-lg">
                   <Loader2 className="h-4 w-4 animate-spin" />
-                  Fetching details from ComicVine...
+                  Fetching details...
                 </div>
               )}
               
               {/* Two-column layout on desktop */}
-              <div className="grid md:grid-cols-[280px_1fr] gap-6">
+              <div className="grid md:grid-cols-[240px_1fr] gap-6">
                 {/* Cover Image Column */}
                 <div className="space-y-4">
                   <div className="relative aspect-[2/3] rounded-lg overflow-hidden bg-secondary">
@@ -201,310 +242,403 @@ export function ComicDetailModal({ comic, open, onOpenChange, onDelete, onUpdate
                       </div>
                     )}
                     
-                    {/* Badges */}
-                    <div className="absolute top-3 left-3 right-3 flex justify-between">
-                      <div className="flex flex-col gap-2">
-                        {displayComic.isKeyIssue && (
-                          <Badge className="bg-accent text-accent-foreground gap-1 shadow-lg text-xs">
-                            <Star className="h-3 w-3 fill-current" />
-                            KEY
-                          </Badge>
-                        )}
-                        {displayComic.isSigned && (
-                          <Badge className="bg-comic-green text-white gap-1 shadow-lg text-xs">
-                            <PenTool className="h-3 w-3" />
-                            SIGNED
-                          </Badge>
-                        )}
-                      </div>
-                      {displayComic.grade && (
-                        <Badge variant="secondary" className="bg-card/90 backdrop-blur-sm shadow-lg ml-auto text-xs">
-                          {displayComic.gradeStatus.toUpperCase()} {displayComic.grade}
+                    {/* Key Issue Badge */}
+                    {displayComic.isKeyIssue && (
+                      <div className="absolute top-3 left-3">
+                        <Badge className="bg-accent text-accent-foreground gap-1 shadow-lg text-xs">
+                          <Star className="h-3 w-3 fill-current" />
+                          KEY
                         </Badge>
-                      )}
-                    </div>
+                      </div>
+                    )}
                   </div>
-                  
-                  {/* Value Section */}
-                  {(displayComic.currentValue || displayComic.purchasePrice) && (
-                    <div className="space-y-2">
-                      {displayComic.currentValue && (
-                        <div className="stat-card p-3">
-                          <div className="flex items-center justify-between mb-1">
-                            <p className="text-xs text-muted-foreground uppercase tracking-wider">Current Value</p>
-                            {(displayComic as any).confidenceScore !== undefined && (
-                              <ConfidenceIndicator 
-                                score={(displayComic as any).confidenceScore} 
-                                showLabel 
-                                size="sm" 
-                              />
-                            )}
-                          </div>
-                          <p className="text-xl font-display gold-text">{formatCurrency(displayComic.currentValue)}</p>
-                          {((displayComic as any).valueRangeLow || displayComic.valueRange?.low) && (
-                            <p className="text-xs text-muted-foreground mt-1">
-                              Range: {formatCurrency((displayComic as any).valueRangeLow || displayComic.valueRange?.low)} – {formatCurrency((displayComic as any).valueRangeHigh || displayComic.valueRange?.high)}
-                            </p>
-                          )}
-                        </div>
-                      )}
-                      {displayComic.purchasePrice && (
-                        <div className="stat-card p-3">
-                          <p className="text-xs text-muted-foreground uppercase tracking-wider">Paid</p>
-                          <p className="text-lg font-display text-foreground">{formatCurrency(displayComic.purchasePrice)}</p>
-                        </div>
-                      )}
-                      {profit !== null && (
-                        <div className="stat-card p-3">
-                          <p className="text-xs text-muted-foreground uppercase tracking-wider">Profit/Loss</p>
-                          <p className={`text-lg font-display ${profit >= 0 ? 'text-comic-green' : 'text-destructive'}`}>
-                            {profit >= 0 ? '+' : ''}{formatCurrency(profit)}
-                          </p>
-                        </div>
-                      )}
-                      
-                      {/* Value History Chart */}
-                      {valueHistory.length > 0 && (
-                        <div className="stat-card p-3">
-                          <p className="text-xs text-muted-foreground uppercase tracking-wider mb-2 flex items-center gap-1">
-                            <TrendingUp className="h-3 w-3" />
-                            Value History
-                          </p>
-                          <ValueHistoryChart 
-                            history={valueHistory} 
-                            valueChange={valueChange} 
-                            currentValue={displayComic.currentValue} 
-                          />
-                        </div>
-                      )}
-                    </div>
-                  )}
                 </div>
                 
                 {/* Details Column */}
-                <div className="space-y-6">
-                  {/* Title */}
+                <div className="space-y-5">
+                  {/* SECTION 1: Header */}
                   <div className="space-y-1">
-                    <h2 className="font-display text-3xl md:text-4xl tracking-tight text-foreground">
+                    <h2 className="font-display text-2xl md:text-3xl tracking-tight text-foreground">
                       {displayComic.title}
                     </h2>
                     <p className="text-lg text-muted-foreground">
                       #{displayComic.issueNumber} {displayComic.variant && `• ${displayComic.variant}`}
                     </p>
-                    <div className="flex items-center gap-2 pt-2">
+                    <div className="flex items-center gap-2 pt-1">
                       <span className={`era-badge era-${displayComic.era}`}>
                         {ERA_LABELS[displayComic.era]}
                       </span>
                       <span className="text-sm text-muted-foreground">{displayComic.publisher}</span>
                     </div>
-                  </div>
-                  
-                  {/* Key Issue Reason */}
-                  {displayComic.isKeyIssue && displayComic.keyIssueReason && (
-                    <div className="p-3 rounded-lg bg-accent/10 border border-accent/20">
-                      <p className="text-sm font-medium text-accent">
-                        <Star className="h-4 w-4 inline mr-2" />
-                        {displayComic.keyIssueReason}
-                      </p>
-                    </div>
-                  )}
-
-                  {/* Grading Status - Prominent Display */}
-                  <div className="p-3 rounded-lg bg-secondary/50 border border-border">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <div className={`w-3 h-3 rounded-full ${
-                          displayComic.gradeStatus === 'cgc' ? 'bg-blue-500' :
-                          displayComic.gradeStatus === 'cbcs' ? 'bg-red-500' :
-                          displayComic.gradeStatus === 'pgx' ? 'bg-amber-500' :
-                          'bg-muted-foreground'
-                        }`} />
-                        <div>
-                          <p className="text-sm font-semibold uppercase tracking-wider">
-                            {displayComic.gradeStatus === 'raw' ? 'Raw / Ungraded' : displayComic.gradeStatus.toUpperCase()}
-                          </p>
-                          {displayComic.grade && displayComic.gradeStatus !== 'raw' && (
-                            <p className="text-lg font-display text-foreground">{displayComic.grade} {displayComic.labelType || 'Universal'}</p>
-                          )}
-                        </div>
+                    
+                    {/* Key Issue Callout */}
+                    {displayComic.isKeyIssue && displayComic.keyIssueReason && (
+                      <div className="mt-2 p-2 rounded-lg bg-accent/10 border border-accent/20">
+                        <p className="text-sm font-medium text-accent flex items-center gap-2">
+                          <Star className="h-4 w-4 fill-current" />
+                          {displayComic.keyIssueReason}
+                        </p>
                       </div>
-                      {displayComic.certNumber && (
-                        <p className="text-xs text-muted-foreground">Cert #{displayComic.certNumber}</p>
+                    )}
+                  </div>
+
+                  {/* SECTION 2: Value Strip - Always visible */}
+                  <div className="grid grid-cols-3 gap-2">
+                    {/* Current FMV */}
+                    <div className="stat-card p-3">
+                      <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">Current FMV</p>
+                      {displayComic.currentValue ? (
+                        <>
+                          <p className="text-lg font-display gold-text">{formatCurrency(displayComic.currentValue)}</p>
+                          {valueRangeLow && valueRangeHigh && (
+                            <p className="text-[10px] text-muted-foreground">
+                              ${valueRangeLow.toFixed(0)}–${valueRangeHigh.toFixed(0)}
+                            </p>
+                          )}
+                          {confidenceScore !== undefined && (
+                            <div className="flex items-center gap-1 mt-1">
+                              <ConfidenceIndicator score={confidenceScore} size="sm" />
+                              <span className="text-[10px] text-muted-foreground">{getConfidenceLabel(confidenceScore)}</span>
+                            </div>
+                          )}
+                        </>
+                      ) : (
+                        <p className="text-sm text-muted-foreground">Not set</p>
+                      )}
+                    </div>
+                    
+                    {/* Paid */}
+                    <div className="stat-card p-3">
+                      <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">Paid</p>
+                      {displayComic.purchasePrice ? (
+                        <p className="text-lg font-display text-foreground">{formatCurrency(displayComic.purchasePrice)}</p>
+                      ) : (
+                        <div>
+                          <p className="text-sm text-muted-foreground mb-1">Not set</p>
+                          <Button 
+                            variant="ghost" 
+                            size="sm" 
+                            className="h-6 px-2 text-xs text-primary"
+                            onClick={() => setEditDialogOpen(true)}
+                          >
+                            Add
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                    
+                    {/* Delta */}
+                    <div className="stat-card p-3">
+                      <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">Delta</p>
+                      {profit !== null ? (
+                        <p className={cn(
+                          'text-lg font-display',
+                          profit >= 0 ? 'text-green-500' : 'text-destructive'
+                        )}>
+                          {profit >= 0 ? '+' : ''}{formatCurrency(profit)}
+                        </p>
+                      ) : (
+                        <p className="text-[10px] text-muted-foreground">Add purchase price to track ROI</p>
                       )}
                     </div>
                   </div>
 
-                  {/* Signature Info */}
-                  {displayComic.isSigned && signatures.length > 0 && (
+                  {/* SECTION 3: Single Status Card */}
+                  <div className={cn(
+                    'p-3 rounded-lg border',
+                    slab.slabBorderVariant === 'yellow' ? 'bg-yellow-500/10 border-yellow-500/30' :
+                    slab.slabBorderVariant === 'blue' ? 'bg-blue-500/10 border-blue-500/30' :
+                    slab.slabBorderVariant === 'red' ? 'bg-red-500/10 border-red-500/30' :
+                    slab.slabBorderVariant === 'amber' ? 'bg-amber-500/10 border-amber-500/30' :
+                    'bg-secondary/50 border-border'
+                  )}>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className={cn(
+                          'w-3 h-3 rounded-full',
+                          slab.slabBorderVariant === 'yellow' ? 'bg-yellow-500' :
+                          slab.slabBorderVariant === 'blue' ? 'bg-blue-500' :
+                          slab.slabBorderVariant === 'red' ? 'bg-red-500' :
+                          slab.slabBorderVariant === 'amber' ? 'bg-amber-500' :
+                          'bg-muted-foreground'
+                        )} />
+                        <div>
+                          <p className="text-sm font-semibold">{slab.labelTitle}</p>
+                          {displayComic.gradeStatus !== 'raw' && displayComic.grade && (
+                            <p className="text-xs text-muted-foreground">{slab.labelSubtitle}</p>
+                          )}
+                          {displayComic.gradeStatus === 'raw' && displayComic.estimatedRawGrade && (
+                            <p className="text-xs text-muted-foreground">
+                              Est. grade: {displayComic.estimatedRawGrade}
+                              {displayComic.conditionConfidence && ` (${displayComic.conditionConfidence})`}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {certUrl && (
+                          <a 
+                            href={certUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1"
+                          >
+                            #{displayComic.certNumber}
+                            <ExternalLink className="h-3 w-3" />
+                          </a>
+                        )}
+                        {displayComic.gradeStatus !== 'raw' && (
+                          <Button 
+                            variant="ghost" 
+                            size="sm"
+                            className="h-7 px-2"
+                            onClick={() => setGradingFormOpen(true)}
+                          >
+                            <Edit className="h-3 w-3" />
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                    
+                    {/* Show signature info for graded signature series */}
+                    {displayComic.isSigned && signatures.length > 0 && !slab.showSignedBadge && (
+                      <div className="mt-2 pt-2 border-t border-border/50">
+                        <p className="text-xs text-muted-foreground mb-1">Signed by:</p>
+                        <div className="flex flex-wrap gap-1">
+                          {signatures.map((sig, i) => (
+                            <Badge key={sig.id || i} variant="secondary" className="text-xs">
+                              {sig.signedBy}
+                            </Badge>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Raw signed books - show separate signature card */}
+                  {slab.showSignedBadge && signatures.length > 0 && (
                     <div className="p-3 rounded-lg bg-comic-green/10 border border-comic-green/20">
                       <div className="flex items-start justify-between">
-                        <div className="flex-1">
-                          <p className="text-sm font-medium text-comic-green flex items-center gap-2 mb-2">
-                            <CheckCircle2 className="h-4 w-4" />
+                        <div>
+                          <p className="text-sm font-medium text-comic-green flex items-center gap-2 mb-1">
+                            <PenTool className="h-4 w-4" />
                             {signatures.length === 1 
                               ? getSignatureTypeLabel(signatures[0].signatureType)
                               : `${signatures.length} Signatures`
                             }
                           </p>
-                          <div className="space-y-1">
-                            {signatures.map((sig, index) => (
-                              <div key={sig.id || index} className="text-sm">
-                                <span className="text-foreground font-medium">{sig.signedBy}</span>
-                                {signatures.length > 1 && (
-                                  <span className="text-muted-foreground text-xs ml-2">
-                                    ({getSignatureTypeLabel(sig.signatureType)})
-                                  </span>
-                                )}
-                              </div>
+                          <div className="flex flex-wrap gap-1">
+                            {signatures.map((sig, i) => (
+                              <Badge key={sig.id || i} variant="secondary" className="text-xs">
+                                {sig.signedBy}
+                              </Badge>
                             ))}
                           </div>
                         </div>
-                        <div className="flex flex-col gap-1">
-                          <Button variant="outline" size="sm" onClick={() => setSignDialogOpen(true)}>
-                            <PenTool className="h-3 w-3 mr-1" />
-                            Add More
+                        <div className="flex gap-1">
+                          <Button variant="ghost" size="sm" className="h-7 px-2" onClick={() => setSignDialogOpen(true)}>
+                            <PenTool className="h-3 w-3" />
                           </Button>
-                          <Button variant="ghost" size="sm" onClick={handleRemoveSignature} className="text-destructive text-xs">
-                            Remove All
+                          <Button variant="ghost" size="sm" className="h-7 px-2 text-destructive" onClick={handleRemoveSignature}>
+                            <X className="h-3 w-3" />
                           </Button>
                         </div>
                       </div>
                     </div>
                   )}
 
-                  {/* Grading Details */}
-                  {displayComic.gradeStatus !== 'raw' && (
-                    <div className="relative">
-                      <GradingDetails comic={displayComic} />
-                      <div className="absolute top-3 right-3 flex gap-2">
-                        {displayComic.certNumber && (
-                          <Button 
-                            variant="ghost" 
-                            size="sm"
-                            onClick={handleVerifyCert}
-                            disabled={isVerifying}
-                          >
-                            <ShieldCheck className="h-4 w-4 mr-1" />
-                            {isVerifying ? 'Verifying...' : 'Verify'}
-                          </Button>
-                        )}
-                        <Button 
-                          variant="ghost" 
-                          size="sm"
-                          onClick={() => setGradingFormOpen(true)}
-                        >
-                          <Settings className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Should I Grade This? */}
+                  {/* Should I Grade This? - for raw books only */}
                   <ShouldIGradeThis comic={displayComic} />
-                  
-                  {/* Synopsis Section */}
-                  {displayComic.synopsis && (
-                    <Collapsible open={synopsisOpen} onOpenChange={setSynopsisOpen}>
-                      <CollapsibleTrigger asChild>
-                        <Button variant="ghost" className="w-full justify-between p-3 h-auto bg-secondary/30 hover:bg-secondary/50">
-                          <span className="flex items-center gap-2 text-sm font-semibold">
-                            <FileText className="h-4 w-4" />
-                            Synopsis
-                          </span>
-                          {synopsisOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-                        </Button>
-                      </CollapsibleTrigger>
-                      <CollapsibleContent className="p-3 pt-2">
-                        <p className="text-sm text-foreground/80 leading-relaxed">{displayComic.synopsis}</p>
-                      </CollapsibleContent>
-                    </Collapsible>
-                  )}
 
-                  {/* Characters Section */}
-                  {displayComic.characters && displayComic.characters.length > 0 && (
-                    <div className="space-y-2">
-                      <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-2">
-                        <Users className="h-4 w-4" />
-                        Featured Characters
-                      </h3>
-                      <div className="flex flex-wrap gap-1.5">
-                        {displayComic.characters.slice(0, 8).map((character, i) => (
-                          <Badge key={i} variant="outline" className="text-xs">
-                            {character}
-                          </Badge>
-                        ))}
-                        {displayComic.characters.length > 8 && (
-                          <Badge variant="outline" className="text-xs text-muted-foreground">
-                            +{displayComic.characters.length - 8} more
-                          </Badge>
+                  {/* SECTION 4: Collapsible Drawers */}
+                  <Accordion type="multiple" className="w-full">
+                    {/* Creators Drawer */}
+                    <AccordionItem value="creators" className="border-b-0">
+                      <AccordionTrigger className="text-sm font-semibold py-2 hover:no-underline">
+                        <span className="flex items-center gap-2">
+                          <Users className="h-4 w-4 text-muted-foreground" />
+                          Creators
+                        </span>
+                      </AccordionTrigger>
+                      <AccordionContent className="pb-4">
+                        {hasCreators ? (
+                          <div className="grid gap-2">
+                            {displayComic.writer && <DetailRow icon={User} label="Writer" value={displayComic.writer} />}
+                            {displayComic.artist && <DetailRow icon={Palette} label="Artist" value={displayComic.artist} />}
+                            {displayComic.coverArtist && <DetailRow icon={Palette} label="Cover" value={displayComic.coverArtist} />}
+                            {displayComic.colorist && <DetailRow icon={Palette} label="Colorist" value={displayComic.colorist} />}
+                            {displayComic.inker && <DetailRow icon={Palette} label="Inker" value={displayComic.inker} />}
+                            {displayComic.letterer && <DetailRow icon={User} label="Letterer" value={displayComic.letterer} />}
+                            {displayComic.editor && <DetailRow icon={User} label="Editor" value={displayComic.editor} />}
+                          </div>
+                        ) : (
+                          <div className="flex items-center justify-between">
+                            <p className="text-sm text-muted-foreground">Creator credits not enriched yet</p>
+                            <Button 
+                              variant="outline" 
+                              size="sm"
+                              onClick={handleRetryCreditsLookup}
+                              disabled={isEnrichingCredits}
+                              className="gap-2"
+                            >
+                              {isEnrichingCredits ? (
+                                <Loader2 className="h-3 w-3 animate-spin" />
+                              ) : (
+                                <RefreshCw className="h-3 w-3" />
+                              )}
+                              Retry Credits Lookup
+                            </Button>
+                          </div>
                         )}
-                      </div>
-                    </div>
-                  )}
+                      </AccordionContent>
+                    </AccordionItem>
 
-                  {/* Story Arc */}
-                  {displayComic.storyArc && (
-                    <div className="p-3 rounded-lg bg-primary/5 border border-primary/10">
-                      <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Story Arc</p>
-                      <p className="text-sm font-medium text-foreground">{displayComic.storyArc}</p>
-                    </div>
-                  )}
-                  
-                  {/* Details */}
-                  <div className="space-y-3">
-                    <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Details</h3>
-                    
-                    <div className="grid gap-2">
-                      {displayComic.publisher && (
-                        <DetailRow icon={BookOpen} label="Publisher" value={displayComic.publisher} />
-                      )}
-                      {displayComic.coverDate && (
-                        <DetailRow icon={Calendar} label="Cover Date" value={formatDate(displayComic.coverDate)} />
-                      )}
-                      {displayComic.writer && (
-                        <DetailRow icon={User} label="Writer" value={displayComic.writer} />
-                      )}
-                      {displayComic.artist && (
-                        <DetailRow icon={Palette} label="Artist" value={displayComic.artist} />
-                      )}
-                      {displayComic.coverArtist && (
-                        <DetailRow icon={Palette} label="Cover Artist" value={displayComic.coverArtist} />
-                      )}
-                      {displayComic.colorist && (
-                        <DetailRow icon={Palette} label="Colorist" value={displayComic.colorist} />
-                      )}
-                      {displayComic.inker && (
-                        <DetailRow icon={Palette} label="Inker" value={displayComic.inker} />
-                      )}
-                      {displayComic.letterer && (
-                        <DetailRow icon={User} label="Letterer" value={displayComic.letterer} />
-                      )}
-                      {displayComic.location && (
-                        <DetailRow icon={MapPin} label="Location" value={displayComic.location} />
-                      )}
-                      {displayComic.upcCode && (
-                        <DetailRow icon={BookOpen} label="UPC" value={displayComic.upcCode} />
-                      )}
-                      {displayComic.coverPrice && (
-                        <DetailRow icon={BookOpen} label="Cover Price" value={displayComic.coverPrice} />
-                      )}
-                      
-                      {/* Show placeholder if no creator data */}
-                      {!displayComic.writer && !displayComic.artist && !displayComic.coverArtist && (
-                        <p className="text-xs text-muted-foreground italic">
-                          Creator details not available. Click Edit to add manually.
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                  
-                  {/* Notes */}
-                  {displayComic.notes && (
-                    <div className="space-y-2">
-                      <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Notes</h3>
-                      <p className="text-sm text-foreground/80">{displayComic.notes}</p>
-                    </div>
-                  )}
+                    {/* Story Drawer */}
+                    <AccordionItem value="story" className="border-b-0">
+                      <AccordionTrigger className="text-sm font-semibold py-2 hover:no-underline">
+                        <span className="flex items-center gap-2">
+                          <FileText className="h-4 w-4 text-muted-foreground" />
+                          Story
+                        </span>
+                      </AccordionTrigger>
+                      <AccordionContent className="pb-4 space-y-3">
+                        {displayComic.synopsis && (
+                          <p className="text-sm text-foreground/80 leading-relaxed">{displayComic.synopsis}</p>
+                        )}
+                        {displayComic.storyArc && (
+                          <div>
+                            <p className="text-xs text-muted-foreground uppercase mb-1">Story Arc</p>
+                            <p className="text-sm font-medium">{displayComic.storyArc}</p>
+                          </div>
+                        )}
+                        {displayComic.characters && displayComic.characters.length > 0 && (
+                          <div>
+                            <p className="text-xs text-muted-foreground uppercase mb-1">Characters</p>
+                            <div className="flex flex-wrap gap-1">
+                              {displayComic.characters.slice(0, 8).map((char, i) => (
+                                <Badge key={i} variant="outline" className="text-xs">{char}</Badge>
+                              ))}
+                              {displayComic.characters.length > 8 && (
+                                <Badge variant="outline" className="text-xs text-muted-foreground">
+                                  +{displayComic.characters.length - 8} more
+                                </Badge>
+                              )}
+                            </div>
+                          </div>
+                        )}
+                        {!displayComic.synopsis && !displayComic.storyArc && (!displayComic.characters || displayComic.characters.length === 0) && (
+                          <p className="text-sm text-muted-foreground">No story information available</p>
+                        )}
+                      </AccordionContent>
+                    </AccordionItem>
+
+                    {/* Grading Details Drawer - only for graded books */}
+                    {displayComic.gradeStatus !== 'raw' && (
+                      <AccordionItem value="grading" className="border-b-0">
+                        <AccordionTrigger className="text-sm font-semibold py-2 hover:no-underline">
+                          <span className="flex items-center gap-2">
+                            <ShieldCheck className="h-4 w-4 text-muted-foreground" />
+                            Grading Details
+                          </span>
+                        </AccordionTrigger>
+                        <AccordionContent className="pb-4 space-y-2">
+                          {displayComic.pageQuality && (
+                            <div className="flex justify-between text-sm">
+                              <span className="text-muted-foreground">Page Quality</span>
+                              <span>{PAGE_QUALITY_LABELS[displayComic.pageQuality] || displayComic.pageQuality}</span>
+                            </div>
+                          )}
+                          {displayComic.gradedDate && (
+                            <div className="flex justify-between text-sm">
+                              <span className="text-muted-foreground">Graded</span>
+                              <span>{formatDate(displayComic.gradedDate)}</span>
+                            </div>
+                          )}
+                          {displayComic.graderNotes && (
+                            <div className="pt-2">
+                              <p className="text-xs text-muted-foreground mb-1">Grader Notes</p>
+                              <p className="text-sm text-foreground/80 p-2 bg-secondary/50 rounded">{displayComic.graderNotes}</p>
+                            </div>
+                          )}
+                          {displayComic.innerWellNotes && (
+                            <div>
+                              <p className="text-xs text-muted-foreground mb-1">Inner Well</p>
+                              <p className="text-sm text-foreground/80">{displayComic.innerWellNotes}</p>
+                            </div>
+                          )}
+                          {certUrl && (
+                            <div className="pt-2">
+                              <Button variant="outline" size="sm" className="w-full gap-2" onClick={handleVerifyCert} disabled={isVerifying}>
+                                <ShieldCheck className="h-4 w-4" />
+                                {isVerifying ? 'Verifying...' : 'Verify Certificate'}
+                              </Button>
+                            </div>
+                          )}
+                        </AccordionContent>
+                      </AccordionItem>
+                    )}
+
+                    {/* Market Data Drawer */}
+                    <AccordionItem value="market" className="border-b-0">
+                      <AccordionTrigger className="text-sm font-semibold py-2 hover:no-underline">
+                        <span className="flex items-center gap-2">
+                          <TrendingUp className="h-4 w-4 text-muted-foreground" />
+                          Market Data
+                        </span>
+                      </AccordionTrigger>
+                      <AccordionContent className="pb-4">
+                        {valueHistory.length > 0 ? (
+                          <div className="space-y-3">
+                            <ValueHistoryChart 
+                              history={valueHistory} 
+                              valueChange={valueChange} 
+                              currentValue={displayComic.currentValue} 
+                            />
+                          </div>
+                        ) : isLoadingHistory ? (
+                          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                            Fetching market prices...
+                          </div>
+                        ) : (
+                          <p className="text-sm text-muted-foreground">No market history available</p>
+                        )}
+                      </AccordionContent>
+                    </AccordionItem>
+
+                    {/* Notes & Location Drawer */}
+                    <AccordionItem value="notes" className="border-b-0">
+                      <AccordionTrigger className="text-sm font-semibold py-2 hover:no-underline">
+                        <span className="flex items-center gap-2">
+                          <BookOpen className="h-4 w-4 text-muted-foreground" />
+                          Details & Notes
+                        </span>
+                      </AccordionTrigger>
+                      <AccordionContent className="pb-4 space-y-2">
+                        {displayComic.coverDate && (
+                          <DetailRow icon={Calendar} label="Cover Date" value={formatDate(displayComic.coverDate)} />
+                        )}
+                        {displayComic.coverPrice && (
+                          <DetailRow icon={DollarSign} label="Cover Price" value={displayComic.coverPrice} />
+                        )}
+                        {displayComic.upcCode && (
+                          <DetailRow icon={BookOpen} label="UPC" value={displayComic.upcCode} />
+                        )}
+                        {displayComic.location && (
+                          <DetailRow icon={MapPin} label="Location" value={displayComic.location} />
+                        )}
+                        {(displayComic as any).purchaseDate && (
+                          <DetailRow icon={Calendar} label="Purchased" value={formatDate((displayComic as any).purchaseDate)} />
+                        )}
+                        {displayComic.notes && (
+                          <div className="pt-2">
+                            <p className="text-xs text-muted-foreground mb-1">Notes</p>
+                            <p className="text-sm text-foreground/80">{displayComic.notes}</p>
+                          </div>
+                        )}
+                      </AccordionContent>
+                    </AccordionItem>
+                  </Accordion>
                   
                   {/* Actions */}
                   <div className="flex gap-3 pt-4 border-t border-border">
