@@ -4,6 +4,8 @@ import { Camera, Upload, RefreshCw, Loader2, Scan, Square } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { Progress } from '@/components/ui/progress';
+import { ScanProgressStepper, type ScanStage } from './ScanProgressStepper';
+import { ScanErrorDisplay, categorizeError, type ScanError } from './ScanErrorDisplay';
 
 interface RecognizedComic {
   title: string;
@@ -49,6 +51,8 @@ export function CoverScanner({ onRecognize, onError }: CoverScannerProps) {
   const [isProcessing, setIsProcessing] = useState(false);
   const [capturedImage, setCapturedImage] = useState<string | null>(null);
   const [stabilityProgress, setStabilityProgress] = useState(0);
+  const [scanStage, setScanStage] = useState<ScanStage | null>(null);
+  const [scanError, setScanError] = useState<ScanError | null>(null);
   const { toast } = useToast();
   const audioContextRef = useRef<AudioContext | null>(null);
 
@@ -156,6 +160,8 @@ export function CoverScanner({ onRecognize, onError }: CoverScannerProps) {
           // Capture and recognize
           const imageData = canvas.toDataURL('image/jpeg', 0.85);
           setIsProcessing(true);
+          setScanStage('identifying');
+          setScanError(null);
           
           try {
             const { data, error } = await supabase.functions.invoke('recognize-comic', {
@@ -169,6 +175,8 @@ export function CoverScanner({ onRecognize, onError }: CoverScannerProps) {
               playSuccessBeep();
               if (navigator.vibrate) navigator.vibrate([100, 50, 100]);
               
+              setScanStage('complete');
+              
               toast({
                 title: 'Comic Recognized!',
                 description: `${data.comic.title} #${data.comic.issueNumber}`,
@@ -181,9 +189,13 @@ export function CoverScanner({ onRecognize, onError }: CoverScannerProps) {
                 ...data.comic,
                 userCapturedImage: imageData,
               });
+            } else {
+              // Recognition failed but not an error
+              setScanStage(null);
             }
           } catch (err) {
             console.error('Live scan recognition error:', err);
+            setScanStage(null);
             // Don't show error toast on every failed frame, just continue scanning
           } finally {
             setIsProcessing(false);
@@ -334,6 +346,8 @@ export function CoverScanner({ onRecognize, onError }: CoverScannerProps) {
     if (!capturedImage) return;
 
     setIsProcessing(true);
+    setScanStage('identifying');
+    setScanError(null);
     
     try {
       const { data, error } = await supabase.functions.invoke('recognize-comic', {
@@ -345,6 +359,7 @@ export function CoverScanner({ onRecognize, onError }: CoverScannerProps) {
       }
 
       if (data.success && data.comic) {
+        setScanStage('complete');
         toast({
           title: 'Comic Recognized!',
           description: `${data.comic.title} #${data.comic.issueNumber}`,
@@ -358,13 +373,10 @@ export function CoverScanner({ onRecognize, onError }: CoverScannerProps) {
       }
     } catch (err) {
       console.error('Recognition error:', err);
-      const message = err instanceof Error ? err.message : 'Recognition failed';
-      toast({
-        title: 'Recognition Failed',
-        description: message,
-        variant: 'destructive',
-      });
-      onError?.(message);
+      const categorized = categorizeError(err);
+      setScanError(categorized);
+      setScanStage('error');
+      onError?.(categorized.message);
     } finally {
       setIsProcessing(false);
     }
@@ -475,12 +487,30 @@ export function CoverScanner({ onRecognize, onError }: CoverScannerProps) {
           </div>
         )}
 
-        {/* Processing overlay */}
-        {isProcessing && !isLiveScanning && (
-          <div className="absolute inset-0 bg-background/80 flex items-center justify-center">
-            <div className="text-center">
-              <Loader2 className="w-12 h-12 animate-spin text-primary mx-auto mb-4" />
-              <p className="text-sm text-muted-foreground">Analyzing cover...</p>
+        {/* Processing overlay with progress stepper */}
+        {isProcessing && !isLiveScanning && scanStage && (
+          <div className="absolute inset-0 bg-background/90 flex items-center justify-center p-4">
+            <div className="w-full max-w-xs">
+              <ScanProgressStepper currentStage={scanStage} />
+            </div>
+          </div>
+        )}
+
+        {/* Error display overlay */}
+        {scanError && !isProcessing && (
+          <div className="absolute inset-0 bg-background/90 flex items-center justify-center p-4">
+            <div className="w-full max-w-xs">
+              <ScanErrorDisplay 
+                error={scanError} 
+                onRetry={() => {
+                  setScanError(null);
+                  recognizeComic();
+                }}
+                onDismiss={() => {
+                  setScanError(null);
+                  setScanStage(null);
+                }}
+              />
             </div>
           </div>
         )}

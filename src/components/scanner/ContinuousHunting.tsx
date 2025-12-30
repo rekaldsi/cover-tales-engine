@@ -3,6 +3,8 @@ import { Loader2, Camera, XCircle, Zap } from 'lucide-react';
 import { Progress } from '@/components/ui/progress';
 import { Button } from '@/components/ui/button';
 import { VerdictPill } from './VerdictPill';
+import { ScanProgressStepper, type ScanStage } from './ScanProgressStepper';
+import { ScanErrorDisplay, categorizeError, type ScanError } from './ScanErrorDisplay';
 import { useContinuousScan } from '@/hooks/useContinuousScan';
 import { useHuntingFeedback } from '@/hooks/useHuntingFeedback';
 import { supabase } from '@/integrations/supabase/client';
@@ -50,6 +52,8 @@ export function ContinuousHunting({ ownedComics, onExit }: ContinuousHuntingProp
   const [currentResult, setCurrentResult] = useState<HuntingResult | null>(null);
   const [scanCount, setTotalScans] = useState(0);
   const [recentScans, setRecentScans] = useState<HuntingResult[]>([]);
+  const [scanStage, setScanStage] = useState<ScanStage | null>(null);
+  const [scanError, setScanError] = useState<ScanError | null>(null);
   
   const { toast } = useToast();
   const { triggerFeedback, playChaChing, vibrate } = useHuntingFeedback();
@@ -75,6 +79,8 @@ export function ContinuousHunting({ ownedComics, onExit }: ContinuousHuntingProp
   // Recognize and lookup comic
   const recognizeComic = useCallback(async (imageData: ImageData) => {
     setProcessing(true);
+    setScanStage('detecting');
+    setScanError(null);
     
     try {
       // Convert ImageData to base64
@@ -90,6 +96,8 @@ export function ContinuousHunting({ ownedComics, onExit }: ContinuousHuntingProp
       // Detection beep
       vibrate(50);
       
+      setScanStage('identifying');
+      
       // Call AI recognition
       const { data: recognizeData, error: recognizeError } = await supabase.functions.invoke('recognize-comic', {
         body: { image: base64Image }
@@ -100,9 +108,12 @@ export function ContinuousHunting({ ownedComics, onExit }: ContinuousHuntingProp
       if (!recognizeData?.title) {
         // Could not recognize - short feedback and continue
         vibrate([30, 30, 30]);
+        setScanStage(null);
         setProcessing(false);
         return;
       }
+      
+      setScanStage('valuing');
       
       // Fetch value data
       let rawValue: number | undefined;
@@ -138,6 +149,7 @@ export function ContinuousHunting({ ownedComics, onExit }: ContinuousHuntingProp
         isMissing,
       };
       
+      setScanStage('complete');
       setCurrentResult(result);
       setTotalScans(prev => prev + 1);
       setRecentScans(prev => [result, ...prev].slice(0, 5));
@@ -147,14 +159,20 @@ export function ContinuousHunting({ ownedComics, onExit }: ContinuousHuntingProp
       
     } catch (err) {
       console.error('Recognition error:', err);
+      const categorized = categorizeError(err);
+      setScanError(categorized);
+      setScanStage('error');
       vibrate([30, 30, 30]);
     } finally {
       // Don't immediately reset - let the pill show
       setTimeout(() => {
         setProcessing(false);
+        if (!currentResult) {
+          setScanStage(null);
+        }
       }, 500);
     }
-  }, [checkIfOwned, setProcessing, triggerFeedback, vibrate]);
+  }, [checkIfOwned, setProcessing, triggerFeedback, vibrate, currentResult]);
 
   // Initialize camera
   useEffect(() => {
@@ -245,6 +263,8 @@ export function ContinuousHunting({ ownedComics, onExit }: ContinuousHuntingProp
 
   const handleDismissResult = useCallback(() => {
     setCurrentResult(null);
+    setScanStage(null);
+    setScanError(null);
     resetStability();
   }, [resetStability]);
 
@@ -282,11 +302,28 @@ export function ContinuousHunting({ ownedComics, onExit }: ContinuousHuntingProp
           </div>
         )}
         
-        {/* Processing indicator */}
-        {isProcessing && (
-          <div className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-background/90 backdrop-blur rounded-full px-4 py-2 flex items-center gap-2">
-            <Loader2 className="w-4 h-4 animate-spin text-primary" />
-            <span className="text-sm">Analyzing...</span>
+        {/* Processing indicator with progress stepper */}
+        {isProcessing && scanStage && (
+          <div className="absolute bottom-4 left-4 right-4 bg-background/95 backdrop-blur rounded-lg p-3">
+            <ScanProgressStepper currentStage={scanStage} compact />
+          </div>
+        )}
+
+        {/* Error display */}
+        {scanError && !isProcessing && (
+          <div className="absolute bottom-4 left-4 right-4">
+            <ScanErrorDisplay 
+              error={scanError} 
+              compact
+              onRetry={() => {
+                setScanError(null);
+                setScanStage(null);
+              }}
+              onDismiss={() => {
+                setScanError(null);
+                setScanStage(null);
+              }}
+            />
           </div>
         )}
         
