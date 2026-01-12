@@ -7,6 +7,8 @@ import { ScanProgressStepper, type ScanStage } from './ScanProgressStepper';
 import { ScanErrorDisplay, categorizeError, type ScanError } from './ScanErrorDisplay';
 import { useContinuousScan } from '@/hooks/useContinuousScan';
 import { useHuntingFeedback } from '@/hooks/useHuntingFeedback';
+import { useScanResultCache, CachedScanResult } from '@/hooks/useScanResultCache';
+import { getIssueKey } from '@/hooks/useGroupedComics';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import type { Comic } from '@/types/comic';
@@ -16,13 +18,19 @@ type Verdict = 'get' | 'consider' | 'pass' | null;
 interface HuntingResult {
   title: string;
   issueNumber: string;
-  publisher: string;
+  publisher?: string;
+  variant?: string;
   coverImageUrl?: string;
   isKeyIssue: boolean;
   keyIssueReason?: string;
   rawValue?: number;
+  gradedValue98?: number;
+  valueRange?: { low: number; high: number };
+  valueConfidence?: 'high' | 'medium' | 'low';
+  confidenceScore?: number;
   verdict: Verdict;
-  isMissing: boolean;
+  isOwned: boolean;
+  ownedCopyCount: number;
 }
 
 interface ContinuousHuntingProps {
@@ -57,6 +65,7 @@ export function ContinuousHunting({ ownedComics, onExit }: ContinuousHuntingProp
   
   const { toast } = useToast();
   const { triggerFeedback, playChaChing, vibrate } = useHuntingFeedback();
+  const { get: getCachedResult, set: setCachedResult } = useScanResultCache();
   const {
     stabilityProgress,
     isProcessing,
@@ -68,12 +77,22 @@ export function ContinuousHunting({ ownedComics, onExit }: ContinuousHuntingProp
     changeThreshold: 0.25,
   });
 
-  // Check if comic is in collection
-  const checkIfOwned = useCallback((title: string, issueNumber: string) => {
-    return ownedComics.some(
-      c => c.title.toLowerCase() === title.toLowerCase() && 
-           c.issueNumber === issueNumber
-    );
+  // Variant-aware collection check using getIssueKey
+  const checkIfOwned = useCallback((title: string, issueNumber: string, publisher?: string, variant?: string): { isOwned: boolean; copyCount: number } => {
+    const tempComic = {
+      title,
+      issueNumber,
+      publisher: publisher || '',
+      variant_type: variant || '',
+    } as unknown as Comic;
+    
+    const issueKey = getIssueKey(tempComic);
+    const matchingCopies = ownedComics.filter(c => getIssueKey(c) === issueKey);
+    
+    return {
+      isOwned: matchingCopies.length > 0,
+      copyCount: matchingCopies.length,
+    };
   }, [ownedComics]);
 
   // Recognize and lookup comic
@@ -112,42 +131,112 @@ export function ContinuousHunting({ ownedComics, onExit }: ContinuousHuntingProp
         setProcessing(false);
         return;
       }
+
+      const title = recognizeData.title;
+      const issueNumber = recognizeData.issueNumber;
+      const publisher = recognizeData.publisher || 'Unknown';
+      const variant = recognizeData.variant;
+
+      // Generate issue key for caching
+      const tempComic = {
+        title,
+        issueNumber,
+        publisher,
+        variant_type: variant || '',
+      } as unknown as Comic;
+      const issueKey = getIssueKey(tempComic);
+
+      // Check cache first
+      const cached = getCachedResult(issueKey);
+      if (cached) {
+        const huntingResult: HuntingResult = {
+          ...cached,
+          isOwned: cached.alreadyOwned,
+          ownedCopyCount: cached.ownedCopyCount || 0,
+        };
+        setScanStage('complete');
+        setCurrentResult(huntingResult);
+        setTotalScans(prev => prev + 1);
+        setRecentScans(prev => [huntingResult, ...prev].slice(0, 5));
+        triggerFeedback(cached.verdict, cached.isKeyIssue);
+        setProcessing(false);
+        return;
+      }
+
+      // Check ownership (variant-aware)
+      const { isOwned, copyCount } = checkIfOwned(title, issueNumber, publisher, variant);
       
       setScanStage('valuing');
       
-      // Fetch value data
+      // Fetch aggregated value data from multiple sources
       let rawValue: number | undefined;
+      let gradedValue98: number | undefined;
+      let valueRange: { low: number; high: number } | undefined;
+      let confidenceScore: number | undefined;
+      let valueConfidence: 'high' | 'medium' | 'low' = 'low';
       
       try {
-        const { data: valueData } = await supabase.functions.invoke('fetch-gocollect-value', {
+        const { data: valueData } = await supabase.functions.invoke('aggregate-comic-data', {
           body: {
-            title: recognizeData.title,
-            issueNumber: recognizeData.issueNumber,
-            publisher: recognizeData.publisher,
+            title,
+            issue_number: issueNumber,
+            publisher,
+            grade_status: 'raw',
+            include_sources: ['gocollect', 'ebay'], // Fast sources only for hunting
           }
         });
         
-        if (valueData?.success) {
-          rawValue = valueData.fmv?.['2.0'] || valueData.fmv?.['4.0'];
+        if (valueData?.success !== false) {
+          rawValue = valueData?.recommendedValue || valueData?.rawValue;
+          gradedValue98 = valueData?.fmvByGrade?.['9.8']?.recommended || valueData?.graded98Value;
+          valueRange = valueData?.valueRange;
+          confidenceScore = valueData?.confidenceScore;
+          valueConfidence = confidenceScore && confidenceScore >= 70 ? 'high' : 
+                           confidenceScore && confidenceScore >= 40 ? 'medium' : 'low';
         }
       } catch {
         console.log('Value lookup failed, continuing without value');
       }
       
-      const isMissing = !checkIfOwned(recognizeData.title, recognizeData.issueNumber);
-      const verdict = getVerdict(rawValue, recognizeData.isKeyIssue, recognizeData.issueNumber);
+      const verdict = getVerdict(rawValue, recognizeData.isKeyIssue, issueNumber);
       
       const result: HuntingResult = {
-        title: recognizeData.title,
-        issueNumber: recognizeData.issueNumber,
-        publisher: recognizeData.publisher || 'Unknown',
+        title,
+        issueNumber,
+        publisher,
+        variant,
         coverImageUrl: recognizeData.coverImageUrl,
         isKeyIssue: recognizeData.isKeyIssue || false,
         keyIssueReason: recognizeData.keyIssueReason,
         rawValue,
+        gradedValue98,
+        valueRange,
+        valueConfidence,
+        confidenceScore,
         verdict,
-        isMissing,
+        isOwned,
+        ownedCopyCount: copyCount,
       };
+
+      // Cache the result
+      const cacheEntry: CachedScanResult = {
+        title,
+        issueNumber,
+        publisher,
+        variant,
+        coverImageUrl: recognizeData.coverImageUrl,
+        isKeyIssue: recognizeData.isKeyIssue || false,
+        keyIssueReason: recognizeData.keyIssueReason,
+        rawValue,
+        gradedValue98,
+        valueRange,
+        valueConfidence,
+        confidenceScore,
+        verdict,
+        alreadyOwned: isOwned,
+        ownedCopyCount: copyCount,
+      };
+      setCachedResult(issueKey, cacheEntry);
       
       setScanStage('complete');
       setCurrentResult(result);
@@ -172,7 +261,7 @@ export function ContinuousHunting({ ownedComics, onExit }: ContinuousHuntingProp
         }
       }, 500);
     }
-  }, [checkIfOwned, setProcessing, triggerFeedback, vibrate, currentResult]);
+  }, [checkIfOwned, setProcessing, triggerFeedback, vibrate, currentResult, getCachedResult, setCachedResult]);
 
   // Initialize camera
   useEffect(() => {
@@ -327,15 +416,21 @@ export function ContinuousHunting({ ownedComics, onExit }: ContinuousHuntingProp
           </div>
         )}
         
-        {/* Verdict pill overlay */}
+        {/* Verdict pill overlay - now with enhanced value display */}
         {currentResult && (
           <VerdictPill
             verdict={currentResult.verdict}
             title={currentResult.title}
             issueNumber={currentResult.issueNumber}
-            value={currentResult.rawValue}
+            publisher={currentResult.publisher}
+            rawValue={currentResult.rawValue}
+            gradedValue98={currentResult.gradedValue98}
+            valueRange={currentResult.valueRange}
+            confidence={currentResult.valueConfidence}
+            confidenceScore={currentResult.confidenceScore}
             isKeyIssue={currentResult.isKeyIssue}
-            isMissing={currentResult.isMissing}
+            isOwned={currentResult.isOwned}
+            copyCount={currentResult.ownedCopyCount}
             onDismiss={handleDismissResult}
           />
         )}
@@ -380,6 +475,7 @@ export function ContinuousHunting({ ownedComics, onExit }: ContinuousHuntingProp
                 }`}
               >
                 {scan.title} #{scan.issueNumber}
+                {scan.rawValue && <span className="ml-1 opacity-70">${scan.rawValue}</span>}
               </div>
             ))}
           </div>
