@@ -7,6 +7,8 @@ import { ScanProgressStepper, type ScanStage } from './ScanProgressStepper';
 import { ScanErrorDisplay, categorizeError, type ScanError } from './ScanErrorDisplay';
 import { useContinuousScan } from '@/hooks/useContinuousScan';
 import { useHuntingFeedback } from '@/hooks/useHuntingFeedback';
+import { useScanResultCache } from '@/hooks/useScanResultCache';
+import { getIssueKey } from '@/hooks/useGroupedComics';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import type { Comic } from '@/types/comic';
@@ -17,12 +19,20 @@ interface HuntingResult {
   title: string;
   issueNumber: string;
   publisher: string;
+  variant?: string;
   coverImageUrl?: string;
   isKeyIssue: boolean;
   keyIssueReason?: string;
+  // Enhanced value data
   rawValue?: number;
+  gradedValue98?: number;
+  valueRange?: { low: number; high: number };
+  valueConfidence?: 'high' | 'medium' | 'low';
+  confidenceScore?: number;
   verdict: Verdict;
+  // Enhanced ownership data
   isMissing: boolean;
+  ownedCopyCount?: number;
 }
 
 interface ContinuousHuntingProps {
@@ -57,6 +67,7 @@ export function ContinuousHunting({ ownedComics, onExit }: ContinuousHuntingProp
   
   const { toast } = useToast();
   const { triggerFeedback, playChaChing, vibrate } = useHuntingFeedback();
+  const { get: getCachedResult, set: setCachedResult } = useScanResultCache<HuntingResult>();
   const {
     stabilityProgress,
     isProcessing,
@@ -68,12 +79,21 @@ export function ContinuousHunting({ ownedComics, onExit }: ContinuousHuntingProp
     changeThreshold: 0.25,
   });
 
-  // Check if comic is in collection
-  const checkIfOwned = useCallback((title: string, issueNumber: string) => {
-    return ownedComics.some(
-      c => c.title.toLowerCase() === title.toLowerCase() && 
-           c.issueNumber === issueNumber
-    );
+  // Check if comic is in collection (variant-aware)
+  const checkIfOwned = useCallback((title: string, issueNumber: string, publisher: string, variant?: string) => {
+    const tempComic: Partial<Comic> = {
+      title,
+      issueNumber,
+      publisher: publisher || '',
+      variant: variant || '',
+    };
+    const issueKey = getIssueKey(tempComic as Comic);
+    const matchingComics = ownedComics.filter(c => getIssueKey(c) === issueKey);
+
+    return {
+      isMissing: matchingComics.length === 0,
+      copyCount: matchingComics.length,
+    };
   }, [ownedComics]);
 
   // Recognize and lookup comic
@@ -113,41 +133,85 @@ export function ContinuousHunting({ ownedComics, onExit }: ContinuousHuntingProp
         return;
       }
       
+      // Check cache first
+      const tempComic: Partial<Comic> = {
+        title: recognizeData.title,
+        issueNumber: recognizeData.issueNumber,
+        publisher: recognizeData.publisher || '',
+        variant: recognizeData.variant || '',
+      };
+      const issueKey = getIssueKey(tempComic as Comic);
+      const cachedResult = getCachedResult(issueKey);
+
+      if (cachedResult) {
+        // Use cached result
+        setScanStage('complete');
+        setCurrentResult(cachedResult);
+        setTotalScans(prev => prev + 1);
+        setRecentScans(prev => [cachedResult, ...prev].slice(0, 5));
+        triggerFeedback(cachedResult.verdict, cachedResult.isKeyIssue);
+        return;
+      }
+
       setScanStage('valuing');
-      
-      // Fetch value data
+
+      // Fetch value data (multi-source aggregation)
       let rawValue: number | undefined;
-      
+      let gradedValue98: number | undefined;
+      let valueRange: { low: number; high: number } | undefined;
+      let valueConfidence: 'high' | 'medium' | 'low' | undefined;
+      let confidenceScore: number | undefined;
+
       try {
-        const { data: valueData } = await supabase.functions.invoke('fetch-gocollect-value', {
+        const { data: valueData } = await supabase.functions.invoke('aggregate-comic-data', {
           body: {
             title: recognizeData.title,
-            issueNumber: recognizeData.issueNumber,
+            issue_number: recognizeData.issueNumber,
             publisher: recognizeData.publisher,
+            grade_status: 'raw',
+            include_sources: ['gocollect', 'ebay'], // Fast sources only
           }
         });
-        
-        if (valueData?.success) {
-          rawValue = valueData.fmv?.['2.0'] || valueData.fmv?.['4.0'];
+
+        if (valueData) {
+          rawValue = valueData.recommendedValue;
+          gradedValue98 = valueData.fmvByGrade?.['9.8']?.recommended;
+          valueRange = valueData.valueRange;
+          valueConfidence = valueData.confidence;
+          confidenceScore = valueData.confidenceScore;
         }
       } catch {
         console.log('Value lookup failed, continuing without value');
       }
-      
-      const isMissing = !checkIfOwned(recognizeData.title, recognizeData.issueNumber);
+
+      const ownershipInfo = checkIfOwned(
+        recognizeData.title,
+        recognizeData.issueNumber,
+        recognizeData.publisher,
+        recognizeData.variant
+      );
       const verdict = getVerdict(rawValue, recognizeData.isKeyIssue, recognizeData.issueNumber);
-      
+
       const result: HuntingResult = {
         title: recognizeData.title,
         issueNumber: recognizeData.issueNumber,
         publisher: recognizeData.publisher || 'Unknown',
+        variant: recognizeData.variant,
         coverImageUrl: recognizeData.coverImageUrl,
         isKeyIssue: recognizeData.isKeyIssue || false,
         keyIssueReason: recognizeData.keyIssueReason,
         rawValue,
+        gradedValue98,
+        valueRange,
+        valueConfidence,
+        confidenceScore,
         verdict,
-        isMissing,
+        isMissing: ownershipInfo.isMissing,
+        ownedCopyCount: ownershipInfo.copyCount,
       };
+
+      // Cache the result
+      setCachedResult(issueKey, result);
       
       setScanStage('complete');
       setCurrentResult(result);
@@ -334,8 +398,13 @@ export function ContinuousHunting({ ownedComics, onExit }: ContinuousHuntingProp
             title={currentResult.title}
             issueNumber={currentResult.issueNumber}
             value={currentResult.rawValue}
+            gradedValue98={currentResult.gradedValue98}
+            valueRange={currentResult.valueRange}
+            confidence={currentResult.valueConfidence}
+            confidenceScore={currentResult.confidenceScore}
             isKeyIssue={currentResult.isKeyIssue}
             isMissing={currentResult.isMissing}
+            ownedCopyCount={currentResult.ownedCopyCount}
             onDismiss={handleDismissResult}
           />
         )}

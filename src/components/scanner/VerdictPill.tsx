@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
-import { Flame, AlertCircle, XCircle, Star, ShoppingCart } from 'lucide-react';
+import { Flame, AlertCircle, XCircle, Star } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { EnhancedValueDisplay } from './EnhancedValueDisplay';
+import { OwnedBadge } from './OwnedBadge';
 
 type Verdict = 'get' | 'consider' | 'pass' | null;
 
@@ -8,9 +10,16 @@ interface VerdictPillProps {
   verdict: Verdict;
   title: string;
   issueNumber: string;
+  // Enhanced value props
   value?: number;
+  gradedValue98?: number;
+  valueRange?: { low: number; high: number };
+  confidence?: 'high' | 'medium' | 'low';
+  confidenceScore?: number;
+  // Status props
   isKeyIssue?: boolean;
   isMissing?: boolean;
+  ownedCopyCount?: number;
   onDismiss?: () => void;
   autoDismissMs?: number;
 }
@@ -20,8 +29,13 @@ export function VerdictPill({
   title,
   issueNumber,
   value,
+  gradedValue98,
+  valueRange,
+  confidence,
+  confidenceScore,
   isKeyIssue,
   isMissing,
+  ownedCopyCount,
   onDismiss,
   autoDismissMs = 4000,
 }: VerdictPillProps) {
@@ -78,69 +92,67 @@ export function VerdictPill({
 
   const { icon: Icon, label, bgClass, textClass, borderClass } = config[verdict];
 
-  const formatValue = (v?: number) => {
-    if (!v) return null;
-    return `$${v.toLocaleString()}`;
-  };
-
   return (
     <div
       onClick={handleDismiss}
       className={cn(
         'absolute top-4 left-1/2 -translate-x-1/2 z-50 cursor-pointer',
         'transition-all duration-300 ease-out',
-        isVisible && !isExiting 
-          ? 'opacity-100 translate-y-0 scale-100' 
+        isVisible && !isExiting
+          ? 'opacity-100 translate-y-0 scale-100'
           : 'opacity-0 -translate-y-4 scale-95'
       )}
     >
       <div
         className={cn(
           'rounded-2xl shadow-2xl border-2 overflow-hidden',
-          'min-w-[200px] max-w-[280px]',
-          bgClass,
-          borderClass
+          'min-w-[200px] max-w-[300px]',
+          'bg-background',
+          'border-border'
         )}
       >
-        {/* Main verdict header */}
-        <div className={cn('flex items-center justify-center gap-2 py-3 px-4', textClass)}>
-          <Icon className="w-6 h-6" />
-          <span className="font-display text-xl font-bold tracking-wide">{label}</span>
+        {/* Verdict Badge (smaller, at top) */}
+        <div className={cn('flex items-center justify-center gap-2 py-2 px-4', bgClass, textClass)}>
+          <Icon className="w-4 h-4" />
+          <span className="font-display text-sm font-bold tracking-wide">{label}</span>
         </div>
 
-        {/* Comic info */}
-        <div className="bg-background/95 backdrop-blur px-4 py-3 space-y-1">
+        {/* Comic Info */}
+        <div className="px-4 py-2 border-b border-border">
           <p className="font-medium text-foreground text-sm truncate">
             {title} #{issueNumber}
           </p>
-          
-          <div className="flex items-center justify-between gap-2">
-            {/* Value */}
-            {formatValue(value) && (
-              <span className="text-lg font-bold text-primary">
-                {formatValue(value)}
-              </span>
-            )}
-            
-            {/* Badges */}
-            <div className="flex items-center gap-1.5">
-              {isKeyIssue && (
-                <div className="flex items-center gap-1 bg-primary/20 text-primary text-xs px-2 py-0.5 rounded-full">
-                  <Star className="w-3 h-3 fill-primary" />
-                  Key
-                </div>
-              )}
-              {isMissing && (
-                <div className="flex items-center gap-1 bg-green-500/20 text-green-400 text-xs px-2 py-0.5 rounded-full">
-                  <ShoppingCart className="w-3 h-3" />
-                  Missing
-                </div>
-              )}
+        </div>
+
+        {/* VALUE - Most Prominent Section */}
+        <div className="px-4 py-3 bg-secondary/30">
+          <EnhancedValueDisplay
+            rawValue={value}
+            gradedValue98={gradedValue98}
+            valueRange={valueRange}
+            confidence={confidence}
+            confidenceScore={confidenceScore}
+            compact={true}
+            showRange={false}
+          />
+        </div>
+
+        {/* Status Badges */}
+        <div className="px-4 py-2 flex items-center justify-center gap-2">
+          <OwnedBadge
+            isOwned={!isMissing}
+            copyCount={ownedCopyCount}
+            size="sm"
+          />
+          {isKeyIssue && (
+            <div className="flex items-center gap-1 bg-primary/20 text-primary text-xs px-2 py-1 rounded-full font-medium">
+              <Star className="w-3 h-3 fill-primary" />
+              Key Issue
             </div>
-          </div>
+          )}
         </div>
       </div>
-      
+
       {/* Tap to dismiss hint */}
       <p className="text-center text-xs text-muted-foreground mt-2 opacity-70">
         Tap to dismiss

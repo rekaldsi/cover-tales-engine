@@ -27,10 +27,13 @@ import {
 } from 'lucide-react';
 import { BarcodeScanner, type ParsedUPC } from './BarcodeScanner';
 import { ContinuousHunting } from './ContinuousHunting';
+import { EnhancedValueDisplay } from './EnhancedValueDisplay';
+import { OwnedBadge } from './OwnedBadge';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { useHuntingFeedback } from '@/hooks/useHuntingFeedback';
+import { getIssueKey } from '@/hooks/useGroupedComics';
 import type { Comic } from '@/types/comic';
 
 interface HuntingModeProps {
@@ -46,13 +49,20 @@ interface HuntingResult {
   title: string;
   issueNumber: string;
   publisher: string;
+  variant?: string;
   coverImageUrl?: string;
   isKeyIssue: boolean;
   keyIssueReason?: string;
+  // Enhanced value data
   rawValue?: number;
-  gradedValue?: number; // 9.8 value
+  gradedValue98?: number; // 9.8 value
+  valueRange?: { low: number; high: number };
+  valueConfidence?: 'high' | 'medium' | 'low';
+  confidenceScore?: number;
   verdict: Verdict;
+  // Enhanced ownership data
   alreadyOwned: boolean;
+  ownedCopyCount?: number;
 }
 
 function getVerdict(result: Partial<HuntingResult>): Verdict {
@@ -108,11 +118,20 @@ export function HuntingMode({ open, onOpenChange, onAddToCollection, ownedComics
   const { user } = useAuth();
   const { triggerFeedback } = useHuntingFeedback();
 
-  const checkIfOwned = useCallback((title: string, issueNumber: string) => {
-    return ownedComics.some(
-      c => c.title.toLowerCase() === title.toLowerCase() && 
-           c.issueNumber === issueNumber
-    );
+  const checkIfOwned = useCallback((title: string, issueNumber: string, publisher: string, variant?: string) => {
+    const tempComic: Partial<Comic> = {
+      title,
+      issueNumber,
+      publisher: publisher || '',
+      variant: variant || '',
+    };
+    const issueKey = getIssueKey(tempComic as Comic);
+    const matchingComics = ownedComics.filter(c => getIssueKey(c) === issueKey);
+
+    return {
+      isOwned: matchingComics.length > 0,
+      copyCount: matchingComics.length,
+    };
   }, [ownedComics]);
 
   const lookupComic = useCallback(async (title: string, issueNumber: string, publisher?: string, barcode?: string) => {
@@ -151,39 +170,52 @@ export function HuntingMode({ open, onOpenChange, onAddToCollection, ownedComics
         return;
       }
 
-      // Step 2: Fetch value data
+      // Step 2: Fetch value data (multi-source aggregation)
       let rawValue: number | undefined;
-      let gradedValue: number | undefined;
+      let gradedValue98: number | undefined;
+      let valueRange: { low: number; high: number } | undefined;
+      let valueConfidence: 'high' | 'medium' | 'low' | undefined;
+      let confidenceScore: number | undefined;
 
       try {
-        const { data: valueData } = await supabase.functions.invoke('fetch-gocollect-value', {
+        const { data: valueData } = await supabase.functions.invoke('aggregate-comic-data', {
           body: {
             title: comicInfo.title,
-            issueNumber: comicInfo.issueNumber,
+            issue_number: comicInfo.issueNumber,
             publisher: comicInfo.publisher,
+            grade_status: 'raw',
+            include_sources: ['gocollect', 'ebay'], // Fast sources only for hunting
           }
         });
 
-        if (valueData?.success) {
-          rawValue = valueData.fmv?.['2.0'] || valueData.fmv?.['4.0'];
-          gradedValue = valueData.fmv?.['9.8'];
+        if (valueData) {
+          rawValue = valueData.recommendedValue;
+          gradedValue98 = valueData.fmvByGrade?.['9.8']?.recommended;
+          valueRange = valueData.valueRange;
+          valueConfidence = valueData.confidence;
+          confidenceScore = valueData.confidenceScore;
         }
       } catch (err) {
         console.log('Value lookup failed, continuing without values');
       }
 
       // Build result
-      const alreadyOwned = checkIfOwned(comicInfo.title, comicInfo.issueNumber);
+      const ownershipInfo = checkIfOwned(comicInfo.title, comicInfo.issueNumber, comicInfo.publisher, comicInfo.variant);
       const partialResult = {
         title: comicInfo.title,
         issueNumber: comicInfo.issueNumber,
         publisher: comicInfo.publisher || 'Unknown',
+        variant: comicInfo.variant,
         coverImageUrl: comicInfo.coverImageUrl,
         isKeyIssue: comicInfo.isKeyIssue || false,
         keyIssueReason: comicInfo.keyIssueReason,
         rawValue,
-        gradedValue,
-        alreadyOwned,
+        gradedValue98,
+        valueRange,
+        valueConfidence,
+        confidenceScore,
+        alreadyOwned: ownershipInfo.isOwned,
+        ownedCopyCount: ownershipInfo.copyCount,
         verdict: null as Verdict,
       };
 
@@ -327,16 +359,17 @@ export function HuntingMode({ open, onOpenChange, onAddToCollection, ownedComics
                 </div>
               </div>
 
-              {/* Values */}
-              <div className="grid grid-cols-2 gap-3">
-                <div className="bg-secondary/50 rounded-lg p-3 text-center">
-                  <p className="text-xs text-muted-foreground uppercase tracking-wider">Raw</p>
-                  <p className="text-xl font-bold">{formatValue(result.rawValue)}</p>
-                </div>
-                <div className="bg-secondary/50 rounded-lg p-3 text-center">
-                  <p className="text-xs text-muted-foreground uppercase tracking-wider">9.8 Graded</p>
-                  <p className="text-xl font-bold">{formatValue(result.gradedValue)}</p>
-                </div>
+              {/* Enhanced Value Display */}
+              <div className="bg-secondary/30 rounded-lg p-4">
+                <EnhancedValueDisplay
+                  rawValue={result.rawValue}
+                  gradedValue98={result.gradedValue98}
+                  valueRange={result.valueRange}
+                  confidence={result.valueConfidence}
+                  confidenceScore={result.confidenceScore}
+                  compact={false}
+                  showRange={true}
+                />
               </div>
 
               {/* Verdict */}
@@ -344,18 +377,14 @@ export function HuntingMode({ open, onOpenChange, onAddToCollection, ownedComics
                 <VerdictBadge verdict={result.verdict} />
               </div>
 
-              {/* Already Owned Check */}
-              {result.alreadyOwned ? (
-                <div className="flex items-center justify-center gap-2 text-muted-foreground bg-secondary/30 rounded-lg py-2">
-                  <CheckCircle2 className="w-4 h-4" />
-                  <span className="text-sm">Already in your collection</span>
-                </div>
-              ) : (
-                <div className="flex items-center justify-center gap-2 text-green-400 bg-green-500/10 rounded-lg py-2">
-                  <TrendingUp className="w-4 h-4" />
-                  <span className="text-sm">Not in your collection</span>
-                </div>
-              )}
+              {/* Ownership Status Badge */}
+              <div className="flex justify-center py-2">
+                <OwnedBadge
+                  isOwned={result.alreadyOwned}
+                  copyCount={result.ownedCopyCount}
+                  size="lg"
+                />
+              </div>
 
               {/* Actions */}
               <div className="flex gap-2 pt-2">
