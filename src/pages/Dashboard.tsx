@@ -135,52 +135,78 @@ export default function Dashboard({ onAddClick, onHuntingClick }: DashboardProps
         </div>
       )}
 
-      {/* Stats Grid */}
-      <section className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="animate-slide-up stagger-1">
-          <StatCard
-            title="Total Comics"
-            value={stats.totalComics}
-            subtitle="in your collection"
-            icon={Library}
-            accentColor="primary"
-          />
-        </div>
-        <div className="animate-slide-up stagger-2">
-          <StatCard
-            title="Collection Value"
-            value={formatCurrency(stats.totalValue)}
-            subtitle="estimated total"
-            icon={DollarSign}
-            accentColor="gold"
-          />
-        </div>
-        <div className="animate-slide-up stagger-3">
-          <StatCard
-            title="Key Issues"
-            value={keyIssueCount}
-            subtitle="valuable comics"
-            icon={Star}
-            accentColor="blue"
-          />
-        </div>
-        <div className="animate-slide-up stagger-4">
-          <StatCard
-            title="Graded"
-            value={gradedCount}
-            subtitle="slabbed comics"
-            icon={TrendingUp}
-            accentColor="green"
-          />
+      {/* HERO: Portfolio Value - Full Width Gradient */}
+      <section className="relative overflow-hidden rounded-2xl p-8 sm:p-12 animate-slide-up">
+        {/* Gradient background */}
+        <div className="absolute inset-0 bg-gradient-to-br from-primary/20 via-primary/10 to-transparent" />
+        <div className="absolute inset-0 bg-hero-pattern opacity-5" />
+
+        <div className="relative z-10 space-y-6">
+          {/* Main value display */}
+          <div>
+            <p className="text-sm uppercase tracking-widest text-muted-foreground font-semibold mb-2">
+              Collection Value
+            </p>
+            <div className="flex items-baseline gap-4 flex-wrap">
+              <h1 className="font-display text-6xl sm:text-7xl lg:text-8xl gradient-text">
+                ${stats.totalValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              </h1>
+              {trend && (
+                <div className={`flex items-center gap-2 ${
+                  trend.percentChange > 0
+                    ? 'text-green-400'
+                    : trend.percentChange < 0
+                      ? 'text-red-400'
+                      : 'text-muted-foreground'
+                }`}>
+                  {trend.percentChange > 0 ? (
+                    <TrendingUp className="w-6 h-6 sm:w-8 sm:h-8" />
+                  ) : trend.percentChange < 0 ? (
+                    <TrendingDown className="w-6 h-6 sm:w-8 sm:h-8" />
+                  ) : null}
+                  <span className="text-2xl sm:text-3xl font-bold">
+                    {trend.percentChange > 0 ? '+' : ''}{trend.percentChange.toFixed(1)}%
+                  </span>
+                </div>
+              )}
+            </div>
+            {trend && (
+              <p className={`text-sm sm:text-base mt-2 ${
+                trend.valueChange > 0
+                  ? 'text-green-400'
+                  : trend.valueChange < 0
+                    ? 'text-red-400'
+                    : 'text-muted-foreground'
+              }`}>
+                {trend.valueChange > 0 ? '+' : ''}${Math.abs(trend.valueChange).toLocaleString()} from {trend.periodLabel} ago
+              </p>
+            )}
+          </div>
+
+          {/* Quick stats row */}
+          <div className="grid grid-cols-3 gap-4 pt-4 border-t border-border/50">
+            <div>
+              <p className="text-xs text-muted-foreground uppercase tracking-wide">Comics</p>
+              <p className="text-2xl font-bold text-foreground">{stats.totalComics}</p>
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground uppercase tracking-wide">Key Issues</p>
+              <p className="text-2xl font-bold text-foreground">{keyIssueCount}</p>
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground uppercase tracking-wide">Graded</p>
+              <p className="text-2xl font-bold text-foreground">{gradedCount}</p>
+            </div>
+          </div>
         </div>
       </section>
 
-      {/* ONE Portfolio Card - includes performance trend */}
-      <section className="animate-slide-up stagger-5">
-        <PortfolioChart 
-          snapshots={snapshots} 
-          trend={trend} 
-          currentValue={stats.totalValue} 
+      {/* Portfolio Chart - Enhanced Size */}
+      <section className="animate-slide-up stagger-2">
+        <PortfolioChart
+          snapshots={snapshots}
+          trend={trend}
+          currentValue={stats.totalValue}
         />
       </section>
 

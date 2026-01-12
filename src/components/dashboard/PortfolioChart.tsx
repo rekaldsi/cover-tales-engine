@@ -102,42 +102,44 @@ export function PortfolioChart({ snapshots, trend, currentValue }: PortfolioChar
           )}
         </div>
         
-        <div className="h-[120px] w-full">
+        <div className="h-[200px] sm:h-[250px] w-full">
           <ResponsiveContainer width="100%" height="100%">
-            <AreaChart data={chartData} margin={{ top: 5, right: 5, left: 5, bottom: 5 }}>
+            <AreaChart data={chartData} margin={{ top: 10, right: 10, left: 10, bottom: 10 }}>
               <defs>
                 <linearGradient id="valueGradient" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.3} />
+                  <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.5} />
+                  <stop offset="50%" stopColor="hsl(var(--primary))" stopOpacity={0.2} />
                   <stop offset="95%" stopColor="hsl(var(--primary))" stopOpacity={0} />
                 </linearGradient>
               </defs>
-              <XAxis 
-                dataKey="date" 
-                axisLine={false} 
-                tickLine={false} 
-                tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }}
+              <XAxis
+                dataKey="date"
+                axisLine={false}
+                tickLine={false}
+                tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }}
                 interval="preserveStartEnd"
               />
-              <YAxis 
-                hide 
-                domain={['dataMin - 100', 'dataMax + 100']} 
+              <YAxis
+                hide
+                domain={['dataMin - 100', 'dataMax + 100']}
               />
               <Tooltip
                 contentStyle={{
                   backgroundColor: 'hsl(var(--popover))',
                   border: '1px solid hsl(var(--border))',
                   borderRadius: '8px',
-                  padding: '8px 12px',
+                  padding: '12px 16px',
                 }}
-                labelStyle={{ color: 'hsl(var(--foreground))' }}
+                labelStyle={{ color: 'hsl(var(--foreground))', fontWeight: 600 }}
                 formatter={(value: number) => [`$${value.toLocaleString()}`, 'Value']}
               />
               <Area
                 type="monotone"
                 dataKey="value"
                 stroke="hsl(var(--primary))"
-                strokeWidth={2}
+                strokeWidth={3}
                 fill="url(#valueGradient)"
+                animationDuration={1000}
               />
             </AreaChart>
           </ResponsiveContainer>
