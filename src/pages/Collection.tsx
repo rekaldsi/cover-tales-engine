@@ -7,6 +7,7 @@ import { CopyListModal } from '@/components/comics/CopyListModal';
 import { ComicDetailModal } from '@/components/comics/ComicDetailModal';
 import { CSVImportWizard } from '@/components/import/CSVImportWizard';
 import { MasonryGrid } from '@/components/layout/MasonryGrid';
+import { PullToRefresh } from '@/components/ui/PullToRefresh';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -141,10 +142,16 @@ export default function Collection() {
   
   const displayCount = isGrouped ? filteredGroupedComics.length : filteredAndSortedComics.length;
   const totalCount = isGrouped ? groupedComics.length : comics.length;
-  
+
+  // Pull-to-refresh handler
+  const handleRefresh = async () => {
+    await refetch();
+  };
+
   return (
-    <div className="space-y-6 animate-fade-in">
-      {/* Header */}
+    <PullToRefresh onRefresh={handleRefresh} enabled={true}>
+      <div className="space-y-6 animate-fade-in">
+        {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="font-display text-4xl tracking-tight">Collection</h1>
@@ -388,7 +395,8 @@ export default function Collection() {
         onDelete={deleteComic}
         onUpdate={updateComic}
       />
-    </div>
+      </div>
+    </PullToRefresh>
   );
 }
 
