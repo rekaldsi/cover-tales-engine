@@ -6,16 +6,17 @@ import { GroupedComicCard } from '@/components/comics/GroupedComicCard';
 import { CopyListModal } from '@/components/comics/CopyListModal';
 import { ComicDetailModal } from '@/components/comics/ComicDetailModal';
 import { CSVImportWizard } from '@/components/import/CSVImportWizard';
+import { MasonryGrid } from '@/components/layout/MasonryGrid';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Comic, ComicEra, ERA_LABELS, PUBLISHERS } from '@/types/comic';
-import { Grid3X3, List, Search, Filter, SlidersHorizontal, Download, Layers } from 'lucide-react';
+import { Grid3X3, List, Search, Filter, SlidersHorizontal, Download, Layers, LayoutGrid } from 'lucide-react';
 import { exportToCSV, exportToJSON } from '@/utils/exportCollection';
 
-type ViewMode = 'grid' | 'list';
+type ViewMode = 'grid' | 'masonry' | 'list';
 type SortOption = 'dateAdded' | 'title' | 'value' | 'issue';
 
 const GROUPED_VIEW_KEY = 'comic-collection-grouped-view';
@@ -172,14 +173,25 @@ export default function Collection() {
             size="icon"
             className="min-h-[44px] min-w-[44px]"
             onClick={() => setViewMode('grid')}
+            title="Uniform Grid"
           >
             <Grid3X3 className="h-4 w-4" />
+          </Button>
+          <Button
+            variant={viewMode === 'masonry' ? 'default' : 'outline'}
+            size="icon"
+            className="min-h-[44px] min-w-[44px]"
+            onClick={() => setViewMode('masonry')}
+            title="Masonry Layout"
+          >
+            <LayoutGrid className="h-4 w-4" />
           </Button>
           <Button
             variant={viewMode === 'list' ? 'default' : 'outline'}
             size="icon"
             className="min-h-[44px] min-w-[44px]"
             onClick={() => setViewMode('list')}
+            title="List View"
           >
             <List className="h-4 w-4" />
           </Button>
@@ -286,12 +298,34 @@ export default function Collection() {
               : 'Add your first comic to get started'}
           </p>
         </div>
+      ) : viewMode === 'masonry' ? (
+        <MasonryGrid>
+          {isGrouped ? (
+            // Grouped view
+            filteredGroupedComics.map((group) => (
+              <GroupedComicCard
+                key={group.key}
+                group={group}
+                onClick={() => handleGroupClick(group)}
+              />
+            ))
+          ) : (
+            // Individual view
+            filteredAndSortedComics.map((comic) => (
+              <ComicCard
+                key={comic.id}
+                comic={comic}
+                onClick={() => setSelectedComic(comic)}
+              />
+            ))
+          )}
+        </MasonryGrid>
       ) : viewMode === 'grid' ? (
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 w-full">
           {isGrouped ? (
             // Grouped view
             filteredGroupedComics.map((group, index) => (
-              <div 
+              <div
                 key={group.key}
                 className="animate-fade-in w-full min-w-0"
                 style={{ animationDelay: `${Math.min(index * 0.05, 0.5)}s` }}
@@ -302,7 +336,7 @@ export default function Collection() {
           ) : (
             // Individual view
             filteredAndSortedComics.map((comic, index) => (
-              <div 
+              <div
                 key={comic.id}
                 className="animate-fade-in w-full min-w-0"
                 style={{ animationDelay: `${Math.min(index * 0.05, 0.5)}s` }}

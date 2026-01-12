@@ -181,4 +181,39 @@
   .stagger-2 { animation-delay: 0.2s; }
   .stagger-3 { animation-delay: 0.3s; }
   .stagger-4 { animation-delay: 0.4s; }
+
+  /* Masonry Grid Styles */
+  .masonry-grid-column > * {
+    margin-bottom: 1rem;
+  }
+
+  /* Stagger animation for masonry items */
+  .masonry-grid-column > *:nth-child(1) { animation-delay: 0ms; }
+  .masonry-grid-column > *:nth-child(2) { animation-delay: 50ms; }
+  .masonry-grid-column > *:nth-child(3) { animation-delay: 100ms; }
+  .masonry-grid-column > *:nth-child(4) { animation-delay: 150ms; }
+  .masonry-grid-column > *:nth-child(5) { animation-delay: 200ms; }
+
+  @keyframes masonry-fade-in {
+    from {
+      opacity: 0;
+      transform: translateY(10px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  .masonry-grid-column > * {
+    animation: masonry-fade-in 0.3s ease-out;
+    animation-fill-mode: both;
+  }
+
+  /* Respect reduced motion preference */
+  @media (prefers-reduced-motion: reduce) {
+    .masonry-grid-column > * {
+      animation: none;
+    }
+  }
 }
