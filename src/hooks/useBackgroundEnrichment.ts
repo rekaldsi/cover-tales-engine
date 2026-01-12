@@ -75,13 +75,13 @@ export function useBackgroundEnrichment(
               .from('comics')
               .update({ comicvine_id: data.comicvineId })
               .eq('id', comic.id);
-            if (cvError) console.log('[BG] Failed to save comicvine_id:', cvError);
+            if (cvError) logger.log('[BG] Failed to save comicvine_id:', cvError);
           }
 
           if (Object.keys(updates).length > 0) {
             await updateComic(comic.id, updates);
             enriched = true;
-            console.log(`[BG] Enriched cover/creators: ${comic.title} #${comic.issueNumber}`);
+            logger.log(`[BG] Enriched cover/creators: ${comic.title} #${comic.issueNumber}`);
           }
         }
       }
@@ -96,7 +96,7 @@ export function useBackgroundEnrichment(
 
         if (creditsData?.enriched > 0) {
           enriched = true;
-          console.log(`[BG] Credits enriched: ${comic.title} #${comic.issueNumber}`);
+          logger.log(`[BG] Credits enriched: ${comic.title} #${comic.issueNumber}`);
         } else {
           // Fallback to GCD
           const { data: gcdData } = await supabase.functions.invoke('fetch-gcd-data', {
@@ -117,7 +117,7 @@ export function useBackgroundEnrichment(
                 artist: artist || comic.artist 
               });
               enriched = true;
-              console.log(`[BG] GCD credits: ${comic.title} #${comic.issueNumber}`);
+              logger.log(`[BG] GCD credits: ${comic.title} #${comic.issueNumber}`);
             }
           }
         }
@@ -146,13 +146,13 @@ export function useBackgroundEnrichment(
         if (valueData?.recommended_value) {
           await updateComic(comic.id, { currentValue: valueData.recommended_value });
           enriched = true;
-          console.log(`[BG] Value enriched: ${comic.title} = $${valueData.recommended_value}`);
+          logger.log(`[BG] Value enriched: ${comic.title} = $${valueData.recommended_value}`);
         }
       }
 
       return enriched;
     } catch (err) {
-      console.error(`[BG] Failed to enrich ${comic.title}:`, err);
+      logger.error(`[BG] Failed to enrich ${comic.title}:`, err);
       return false;
     }
   };
@@ -179,7 +179,7 @@ export function useBackgroundEnrichment(
       currentStep: 'Starting enrichment...',
     });
 
-    console.log(`[BG] Starting enrichment for ${comicsToEnrich.length} comics`);
+    logger.log(`[BG] Starting enrichment for ${comicsToEnrich.length} comics`);
 
     for (let i = 0; i < comicsToEnrich.length; i++) {
       const comic = comicsToEnrich[i];
@@ -204,7 +204,7 @@ export function useBackgroundEnrichment(
     }));
     
     isProcessingRef.current = false;
-    console.log('[BG] Enrichment complete');
+    logger.log('[BG] Enrichment complete');
   }, [comics, user, updateComic]);
 
   // Auto-start enrichment when comics load

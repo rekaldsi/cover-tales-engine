@@ -33,7 +33,7 @@ export function useComicEnrichment() {
     setEnrichmentError(null);
 
     try {
-      console.log(`[Enrichment] Fetching data for: ${comic.title} #${comic.issueNumber}`);
+      logger.log(`[Enrichment] Fetching data for: ${comic.title} #${comic.issueNumber}`);
       
       const { data, error } = await supabase.functions.invoke('fetch-comic-cover', {
         body: {
@@ -44,15 +44,15 @@ export function useComicEnrichment() {
       });
 
       if (error) {
-        console.error('[Enrichment] Error:', error);
+        logger.error('[Enrichment] Error:', error);
         setEnrichmentError('Failed to fetch comic details');
         return comic;
       }
 
-      console.log('[Enrichment] Response:', data);
+      logger.log('[Enrichment] Response:', data);
 
       if (!data || data.error || !data.success) {
-        console.log('[Enrichment] No data found:', data?.error);
+        logger.log('[Enrichment] No data found:', data?.error);
         return comic;
       }
 
@@ -76,18 +76,18 @@ export function useComicEnrichment() {
         updates.coverDate = data.coverDate;
       }
 
-      console.log('[Enrichment] Updates to apply:', updates);
+      logger.log('[Enrichment] Updates to apply:', updates);
 
       // Only update if we have new data
       if (Object.keys(updates).length > 0) {
         await onUpdate(comic.id, updates);
-        console.log('[Enrichment] Updated comic:', comic.id);
+        logger.log('[Enrichment] Updated comic:', comic.id);
         return { ...comic, ...updates };
       }
 
       return comic;
     } catch (err) {
-      console.error('[Enrichment] Failed:', err);
+      logger.error('[Enrichment] Failed:', err);
       setEnrichmentError('Failed to enrich comic data');
       return comic;
     } finally {

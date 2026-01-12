@@ -2,6 +2,7 @@ import { useState, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Comic } from '@/types/comic';
 import { useToast } from '@/hooks/use-toast';
+import { logger } from '@/lib/logger';
 
 interface EnrichmentStep {
   id: string;
@@ -63,14 +64,14 @@ export function useAutoEnrichment() {
           });
 
           if (creditsError) {
-            console.error('[AutoEnrich] Credits error:', creditsError);
+            logger.error('[AutoEnrich] Credits error:', creditsError);
             updateStep('credits', { status: 'error', error: creditsError.message });
           } else if (creditsData?.enriched > 0) {
             result.credits = creditsData.results?.[0]?.creditsCount || 0;
             updateStep('credits', { status: 'done', label: `Found ${result.credits} creators` });
           } else {
             // Try GCD as fallback
-            console.log('[AutoEnrich] Trying GCD fallback...');
+            logger.log('[AutoEnrich] Trying GCD fallback...');
             const { data: gcdData } = await supabase.functions.invoke('fetch-gcd-data', {
               body: {
                 title: comic.title,
@@ -99,7 +100,7 @@ export function useAutoEnrichment() {
             }
           }
         } catch (err) {
-          console.error('[AutoEnrich] Credits exception:', err);
+          logger.error('[AutoEnrich] Credits exception:', err);
           updateStep('credits', { status: 'error', error: 'Failed to fetch credits' });
         }
       } else if (options.credits) {
@@ -128,7 +129,7 @@ export function useAutoEnrichment() {
           });
 
           if (valueError) {
-            console.error('[AutoEnrich] Value error:', valueError);
+            logger.error('[AutoEnrich] Value error:', valueError);
             updateStep('values', { status: 'error', error: valueError.message });
           } else if (valueData?.recommended_value) {
             result.value = valueData.recommended_value;
@@ -138,7 +139,7 @@ export function useAutoEnrichment() {
             updateStep('values', { status: 'done', label: 'No market data found' });
           }
         } catch (err) {
-          console.error('[AutoEnrich] Value exception:', err);
+          logger.error('[AutoEnrich] Value exception:', err);
           updateStep('values', { status: 'error', error: 'Failed to fetch values' });
         }
       } else if (options.values) {
@@ -146,7 +147,7 @@ export function useAutoEnrichment() {
       }
 
     } catch (error) {
-      console.error('[AutoEnrich] Error:', error);
+      logger.error('[AutoEnrich] Error:', error);
       result.error = error instanceof Error ? error.message : 'Unknown error';
     }
 
@@ -215,7 +216,7 @@ export function useAutoEnrichment() {
       setIsEnriching(false);
       return false;
     } catch (err) {
-      console.error('[RetryCredits] Error:', err);
+      logger.error('[RetryCredits] Error:', err);
       setSteps([{ id: 'credits', label: 'Lookup failed', status: 'error' }]);
       setIsEnriching(false);
       return false;
@@ -265,7 +266,7 @@ export function useAutoEnrichment() {
       setIsEnriching(false);
       return false;
     } catch (err) {
-      console.error('[RetryValues] Error:', err);
+      logger.error('[RetryValues] Error:', err);
       setSteps([{ id: 'values', label: 'Lookup failed', status: 'error' }]);
       setIsEnriching(false);
       return false;

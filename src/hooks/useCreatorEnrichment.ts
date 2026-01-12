@@ -21,19 +21,19 @@ export function useCreatorEnrichment() {
     setProgress({ total: 0, processed: 0, enriched: 0, errors: 0 });
 
     try {
-      console.log('[CreatorEnrichment] Starting enrichment...');
+      logger.log('[CreatorEnrichment] Starting enrichment...');
       
       const { data, error: fnError } = await supabase.functions.invoke('enrich-credits', {
         body: {},
       });
 
       if (fnError) {
-        console.error('[CreatorEnrichment] Function error:', fnError);
+        logger.error('[CreatorEnrichment] Function error:', fnError);
         setError('Failed to run creator enrichment');
         return { success: false, error: fnError.message };
       }
 
-      console.log('[CreatorEnrichment] Result:', data);
+      logger.log('[CreatorEnrichment] Result:', data);
 
       if (data?.success) {
         setProgress({
@@ -52,7 +52,7 @@ export function useCreatorEnrichment() {
         return { success: false, error: data?.error };
       }
     } catch (err) {
-      console.error('[CreatorEnrichment] Failed:', err);
+      logger.error('[CreatorEnrichment] Failed:', err);
       const message = err instanceof Error ? err.message : 'Failed to enrich creator data';
       setError(message);
       return { success: false, error: message };

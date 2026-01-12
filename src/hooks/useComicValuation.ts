@@ -103,7 +103,7 @@ export function useComicValuation(options: UseComicValuationOptions = {}) {
     try {
       // If using aggregator, fetch from all sources
       if (useAggregator) {
-        console.log('Using multi-source aggregator...');
+        logger.log('Using multi-source aggregator...');
         const { data: aggData, error: aggError } = await supabase.functions.invoke('aggregate-comic-data', {
           body: { 
             title, 
@@ -140,7 +140,7 @@ export function useComicValuation(options: UseComicValuationOptions = {}) {
       }
 
       // Tier 1: Try GoCollect first
-      console.log('Tier 1: Trying GoCollect...');
+      logger.log('Tier 1: Trying GoCollect...');
       const { data: goCollectData, error: goCollectError } = await supabase.functions.invoke('fetch-gocollect-value', {
         body: { title, issue_number: issueNumber, publisher, grade, cert_number: certNumber }
       });
@@ -163,7 +163,7 @@ export function useComicValuation(options: UseComicValuationOptions = {}) {
       }
 
       // Tier 2: Try eBay estimation
-      console.log('Tier 2: Trying eBay estimate...');
+      logger.log('Tier 2: Trying eBay estimate...');
       const { data: ebayData, error: ebayError } = await supabase.functions.invoke('fetch-ebay-prices', {
         body: { title, issueNumber, publisher, grade, gradeStatus }
       });
@@ -197,7 +197,7 @@ export function useComicValuation(options: UseComicValuationOptions = {}) {
       }
 
       // Tier 3: No automated valuation available
-      console.log('Tier 3: No automated valuation available');
+      logger.log('Tier 3: No automated valuation available');
       const result: ValuationResult = {
         success: false,
         source: 'unavailable',
@@ -209,7 +209,7 @@ export function useComicValuation(options: UseComicValuationOptions = {}) {
       return result;
 
     } catch (err) {
-      console.error('Valuation fetch error:', err);
+      logger.error('Valuation fetch error:', err);
       
       const errorMessage = err instanceof Error ? err.message : 'Failed to fetch valuation';
       

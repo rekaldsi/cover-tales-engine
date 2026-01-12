@@ -89,7 +89,7 @@ export function useSigningRecommendations() {
         createdAt: e.created_at,
       })));
     } catch (err) {
-      console.error('Error fetching events:', err);
+      logger.error('Error fetching events:', err);
       toast.error('Failed to load events');
     } finally {
       setIsLoading(false);
@@ -125,7 +125,7 @@ export function useSigningRecommendations() {
         notes: g.notes,
       })));
     } catch (err) {
-      console.error('Error fetching guests:', err);
+      logger.error('Error fetching guests:', err);
     }
   }, [user]);
 
@@ -185,7 +185,7 @@ export function useSigningRecommendations() {
         } : undefined,
       })));
     } catch (err) {
-      console.error('Error fetching recommendations:', err);
+      logger.error('Error fetching recommendations:', err);
     }
   }, [user]);
 
@@ -241,7 +241,7 @@ export function useSigningRecommendations() {
       toast.success('Event created');
       return newEvent;
     } catch (err) {
-      console.error('Error creating event:', err);
+      logger.error('Error creating event:', err);
       toast.error('Failed to create event');
       return null;
     }
@@ -265,7 +265,7 @@ export function useSigningRecommendations() {
       }
       toast.success('Event deleted');
     } catch (err) {
-      console.error('Error deleting event:', err);
+      logger.error('Error deleting event:', err);
       toast.error('Failed to delete event');
     }
   }, [selectedEvent]);
@@ -294,7 +294,7 @@ export function useSigningRecommendations() {
         fetchRecommendations(eventId),
       ]);
     } catch (err) {
-      console.error('Error scraping guests:', err);
+      logger.error('Error scraping guests:', err);
       toast.error('Failed to fetch guest list');
     } finally {
       setIsFetchingGuests(false);
@@ -345,7 +345,7 @@ export function useSigningRecommendations() {
       });
       await fetchRecommendations(eventId);
     } catch (err) {
-      console.error('Error adding guest:', err);
+      logger.error('Error adding guest:', err);
       toast.error('Failed to add guest');
     }
   }, [user, fetchRecommendations]);
@@ -363,7 +363,7 @@ export function useSigningRecommendations() {
       setGuests(prev => prev.filter(g => g.id !== guestId));
       toast.success('Guest removed');
     } catch (err) {
-      console.error('Error removing guest:', err);
+      logger.error('Error removing guest:', err);
       toast.error('Failed to remove guest');
     }
   }, []);
@@ -382,7 +382,7 @@ export function useSigningRecommendations() {
         prev.map(r => r.id === recId ? { ...r, status } : r)
       );
     } catch (err) {
-      console.error('Error updating recommendation:', err);
+      logger.error('Error updating recommendation:', err);
       toast.error('Failed to update');
     }
   }, []);

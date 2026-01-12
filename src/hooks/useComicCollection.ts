@@ -4,6 +4,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { Comic, CollectionStats, ComicEra, getEraFromDate } from '@/types/comic';
 import { getIssueKey } from '@/hooks/useGroupedComics';
+import { logger } from '@/lib/logger';
 
 const STORAGE_KEY = 'comic-collection-v4';
 
@@ -124,7 +125,7 @@ export function useComicCollection() {
         .order('created_at', { ascending: false });
 
       if (error) {
-        console.error('Error fetching comics:', error);
+        logger.error('Error fetching comics:', error);
         setComics([]);
       } else {
         setComics((data || []).map(mapDbToComic));
@@ -148,7 +149,7 @@ export function useComicCollection() {
     
     if (comicsWithoutValue.length === 0) return;
     
-    console.log(`Backfilling values for ${comicsWithoutValue.length} comics...`);
+    logger.log(`Backfilling values for ${comicsWithoutValue.length} comics...`);
     
     for (const comic of comicsWithoutValue) {
       try {
@@ -161,7 +162,7 @@ export function useComicCollection() {
         let valueSource = '';
         
         // Tier 1: Try GoCollect
-        console.log(`[Backfill] Trying GoCollect for ${comic.title} #${comic.issueNumber}`);
+        logger.log(`[Backfill] Trying GoCollect for ${comic.title} #${comic.issueNumber}`);
         const { data: goCollectData } = await supabase.functions.invoke('fetch-gocollect-value', {
           body: {
             title: comic.title,
@@ -178,7 +179,7 @@ export function useComicCollection() {
         
         // Tier 2: Try eBay if GoCollect failed
         if (!rawValue) {
-          console.log(`[Backfill] Trying eBay for ${comic.title} #${comic.issueNumber}`);
+          logger.log(`[Backfill] Trying eBay for ${comic.title} #${comic.issueNumber}`);
           const { data: ebayData } = await supabase.functions.invoke('fetch-ebay-prices', {
             body: {
               title: comic.title,
@@ -197,7 +198,7 @@ export function useComicCollection() {
         
         // Tier 3: Try ComicsPriceGuide if others failed
         if (!rawValue) {
-          console.log(`[Backfill] Trying CPG for ${comic.title} #${comic.issueNumber}`);
+          logger.log(`[Backfill] Trying CPG for ${comic.title} #${comic.issueNumber}`);
           const { data: cpgData } = await supabase.functions.invoke('fetch-cpg-value', {
             body: {
               title: comic.title,
@@ -218,10 +219,10 @@ export function useComicCollection() {
           await supabase.from('comics').update({ current_value: rawValue }).eq('id', comic.id);
           // Update local state
           setComics(prev => prev.map(c => c.id === comic.id ? { ...c, currentValue: rawValue! } : c));
-          console.log(`Backfilled value for ${comic.title} #${comic.issueNumber}: $${rawValue} (source: ${valueSource})`);
+          logger.log(`Backfilled value for ${comic.title} #${comic.issueNumber}: $${rawValue} (source: ${valueSource})`);
         }
       } catch (err) {
-        console.log(`Failed to backfill value for ${comic.title}:`, err);
+        logger.log(`Failed to backfill value for ${comic.title}:`, err);
       }
       
       // Small delay to avoid rate limiting
@@ -307,10 +308,10 @@ export function useComicCollection() {
           // Update local state
           setComics(prev => prev.map(c => c.id === comic.id ? { ...c, currentValue: rawValue! } : c));
           updatedCount++;
-          console.log(`Updated value for ${comic.title} #${comic.issueNumber}: $${rawValue} (source: ${valueSource})`);
+          logger.log(`Updated value for ${comic.title} #${comic.issueNumber}: $${rawValue} (source: ${valueSource})`);
         }
       } catch (err) {
-        console.log(`Failed to refresh value for ${comic.title}:`, err);
+        logger.log(`Failed to refresh value for ${comic.title}:`, err);
       }
       
       // Small delay to avoid rate limiting
@@ -349,7 +350,7 @@ export function useComicCollection() {
       setRefreshProgress({ current: i + 1, total: needsEnrichment.length });
       
       try {
-        console.log(`[Detail Refresh] Fetching for ${comic.title} #${comic.issueNumber}`);
+        logger.log(`[Detail Refresh] Fetching for ${comic.title} #${comic.issueNumber}`);
         
         const { data: enrichData } = await supabase.functions.invoke('fetch-comic-cover', {
           body: {
@@ -383,11 +384,11 @@ export function useComicCollection() {
                 : c
             ));
             updatedCount++;
-            console.log(`[Detail Refresh] Updated ${comic.title} #${comic.issueNumber}`);
+            logger.log(`[Detail Refresh] Updated ${comic.title} #${comic.issueNumber}`);
           }
         }
       } catch (err) {
-        console.log(`Failed to refresh details for ${comic.title}:`, err);
+        logger.log(`Failed to refresh details for ${comic.title}:`, err);
       }
       
       // Small delay to avoid rate limiting
@@ -411,7 +412,7 @@ export function useComicCollection() {
   const addComic = useCallback(async (comic: Omit<Comic, 'id' | 'dateAdded'>) => {
     if (!user) {
       // User is not authenticated - show error and don't save
-      console.error('addComic called without authenticated user - data will NOT be saved!');
+      logger.error('addComic called without authenticated user - data will NOT be saved!');
       toast({
         title: 'Login Required',
         description: 'Please log in to save comics to your collection.',
@@ -432,7 +433,7 @@ export function useComicCollection() {
         let rawValue: number | null = null;
         
         // Tier 1: Try GoCollect
-        console.log(`[AddComic] Trying GoCollect for ${comic.title} #${comic.issueNumber}`);
+        logger.log(`[AddComic] Trying GoCollect for ${comic.title} #${comic.issueNumber}`);
         const { data: goCollectData } = await supabase.functions.invoke('fetch-gocollect-value', {
           body: {
             title: comic.title,
@@ -444,12 +445,12 @@ export function useComicCollection() {
 
         if (goCollectData?.success && goCollectData.fmv) {
           rawValue = goCollectData.fmv.raw || goCollectData.fmv[gradeForPricing] || goCollectData.fmv['8.0'] || goCollectData.fmv['9.0'];
-          if (rawValue) console.log(`[AddComic] GoCollect value: $${rawValue}`);
+          if (rawValue) logger.log(`[AddComic] GoCollect value: $${rawValue}`);
         }
         
         // Tier 2: Try eBay if GoCollect failed
         if (!rawValue) {
-          console.log(`[AddComic] Trying eBay for ${comic.title} #${comic.issueNumber}`);
+          logger.log(`[AddComic] Trying eBay for ${comic.title} #${comic.issueNumber}`);
           const { data: ebayData } = await supabase.functions.invoke('fetch-ebay-prices', {
             body: {
               title: comic.title,
@@ -462,13 +463,13 @@ export function useComicCollection() {
           
           if (ebayData?.success && ebayData.listingCount > 0) {
             rawValue = ebayData.estimatedSoldPrice || ebayData.averageAskingPrice;
-            if (rawValue) console.log(`[AddComic] eBay value: $${rawValue}`);
+            if (rawValue) logger.log(`[AddComic] eBay value: $${rawValue}`);
           }
         }
         
         // Tier 3: Try ComicsPriceGuide if others failed
         if (!rawValue) {
-          console.log(`[AddComic] Trying CPG for ${comic.title} #${comic.issueNumber}`);
+          logger.log(`[AddComic] Trying CPG for ${comic.title} #${comic.issueNumber}`);
           const { data: cpgData } = await supabase.functions.invoke('fetch-cpg-value', {
             body: {
               title: comic.title,
@@ -480,18 +481,18 @@ export function useComicCollection() {
           
           if (cpgData?.success && cpgData.fmv?.current) {
             rawValue = cpgData.fmv.current;
-            if (rawValue) console.log(`[AddComic] CPG value: $${rawValue}`);
+            if (rawValue) logger.log(`[AddComic] CPG value: $${rawValue}`);
           }
         }
         
         if (rawValue) {
           comicWithValue.currentValue = rawValue;
-          console.log('Auto-fetched value for', comic.title, ':', rawValue);
+          logger.log('Auto-fetched value for', comic.title, ':', rawValue);
         } else {
-          console.log('No value found from any source');
+          logger.log('No value found from any source');
         }
       } catch (err) {
-        console.log('Value lookup failed:', err);
+        logger.log('Value lookup failed:', err);
       }
     }
 
@@ -508,7 +509,7 @@ export function useComicCollection() {
       .single();
 
     if (error) {
-      console.error('Error adding comic to database:', error);
+      logger.error('Error adding comic to database:', error);
       toast({
         title: 'Save Failed',
         description: `Could not save comic: ${error.message}`,
@@ -525,7 +526,7 @@ export function useComicCollection() {
     if (!newComic.writer && !newComic.artist) {
       setTimeout(async () => {
         try {
-          console.log(`[BG Enrichment] Fetching for ${newComic.title} #${newComic.issueNumber}`);
+          logger.log(`[BG Enrichment] Fetching for ${newComic.title} #${newComic.issueNumber}`);
           
           const { data: enrichData, error: enrichError } = await supabase.functions.invoke('fetch-comic-cover', {
             body: {
@@ -536,11 +537,11 @@ export function useComicCollection() {
           });
           
           if (enrichError) {
-            console.log('[BG Enrichment] Error:', enrichError);
+            logger.log('[BG Enrichment] Error:', enrichError);
             return;
           }
           
-          console.log('[BG Enrichment] Response:', enrichData);
+          logger.log('[BG Enrichment] Response:', enrichData);
           
           if (enrichData?.success) {
             const dbUpdates: Record<string, any> = {};
@@ -553,13 +554,13 @@ export function useComicCollection() {
             if (enrichData.isKeyIssue !== undefined) dbUpdates.is_key_issue = enrichData.isKeyIssue;
             if (enrichData.keyIssueReason) dbUpdates.key_issue_reason = enrichData.keyIssueReason;
             
-            console.log('[BG Enrichment] DB updates:', dbUpdates);
+            logger.log('[BG Enrichment] DB updates:', dbUpdates);
             
             if (Object.keys(dbUpdates).length > 0) {
               const { error: updateError } = await supabase.from('comics').update(dbUpdates).eq('id', newComic.id);
               
               if (updateError) {
-                console.log('[BG Enrichment] Update error:', updateError);
+                logger.log('[BG Enrichment] Update error:', updateError);
                 return;
               }
               
@@ -579,11 +580,11 @@ export function useComicCollection() {
                   : c
               ));
               
-              console.log('[BG Enrichment] Successfully updated comic');
+              logger.log('[BG Enrichment] Successfully updated comic');
             }
           }
         } catch (err) {
-          console.log('[BG Enrichment] Failed:', err);
+          logger.log('[BG Enrichment] Failed:', err);
         }
       }, 100);
     }
@@ -632,7 +633,7 @@ export function useComicCollection() {
         .eq('id', id);
 
       if (error) {
-        console.error('Error updating comic:', error);
+        logger.error('Error updating comic:', error);
         throw error;
       }
     }
@@ -655,7 +656,7 @@ export function useComicCollection() {
         .eq('id', id);
 
       if (error) {
-        console.error('Error deleting comic:', error);
+        logger.error('Error deleting comic:', error);
         throw error;
       }
     }
