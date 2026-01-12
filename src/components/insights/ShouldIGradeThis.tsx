@@ -14,13 +14,12 @@ export function ShouldIGradeThis({ comic }: ShouldIGradeThisProps) {
   const [gradedValues, setGradedValues] = useState<{ '9.8'?: number; '9.6'?: number; '9.4'?: number } | null>(null);
   const [dataSource, setDataSource] = useState<'estimate' | 'market'>('estimate');
 
-  // Don't show for already graded comics
-  if (comic.gradeStatus !== 'raw') {
-    return null;
-  }
+  const isRaw = comic.gradeStatus === 'raw';
 
   // Fetch real graded values from market data
   useEffect(() => {
+    if (!isRaw) return;
+    
     const fetchGradedPrices = async () => {
       if (!comic.title || !comic.issueNumber) return;
       
@@ -49,7 +48,12 @@ export function ShouldIGradeThis({ comic }: ShouldIGradeThisProps) {
     };
     
     fetchGradedPrices();
-  }, [comic.title, comic.issueNumber, comic.publisher]);
+  }, [comic.title, comic.issueNumber, comic.publisher, isRaw, fetchValuation]);
+
+  // Don't show for already graded comics
+  if (!isRaw) {
+    return null;
+  }
 
   const currentValue = comic.currentValue || 0;
   
