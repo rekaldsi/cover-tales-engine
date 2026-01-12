@@ -216,4 +216,43 @@
       animation: none;
     }
   }
+
+  /* 3D Slab CSS */
+  .perspective-1000 {
+    perspective: 1000px;
+  }
+
+  .transform-style-3d {
+    transform-style: preserve-3d;
+  }
+
+  .rotate-y-2 {
+    transform: rotateY(2deg) rotateX(-2deg);
+  }
+
+  .slab-container {
+    transform-style: preserve-3d;
+  }
+
+  .slab-inner {
+    transform-style: preserve-3d;
+  }
+
+  /* Smooth 3D rotation on hover */
+  .slab-inner:hover {
+    transform: rotateY(2deg) rotateX(-2deg);
+  }
+
+  /* Respect reduced motion for 3D effects */
+  @media (prefers-reduced-motion: reduce) {
+    .slab-container,
+    .slab-inner {
+      transform-style: flat;
+      perspective: none;
+    }
+
+    .slab-inner:hover {
+      transform: none;
+    }
+  }
 }
