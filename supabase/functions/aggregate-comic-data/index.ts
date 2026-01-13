@@ -270,15 +270,20 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Wait for all sources with timeout
-    const timeoutPromise = new Promise<never>((_, reject) => 
-      setTimeout(() => reject(new Error('Timeout')), 30000)
+    // Wait for all sources with individual timeouts - don't fail the whole request if one times out
+    const withTimeout = <T>(promise: Promise<T>, timeoutMs: number, fallback: T): Promise<T> => {
+      return Promise.race([
+        promise,
+        new Promise<T>(resolve => setTimeout(() => resolve(fallback), timeoutMs))
+      ]);
+    };
+
+    // Wrap each promise with its own timeout (15s per provider)
+    const timedPromises = fetchPromises.map(p => 
+      withTimeout(p, 15000, { source: 'timeout', data: { success: false, error: 'Provider timeout' }, latencyMs: 15000 })
     );
 
-    const results = await Promise.race([
-      Promise.all(fetchPromises),
-      timeoutPromise.then(() => [])
-    ]) as { source: string; data: any; latencyMs: number }[];
+    const results = await Promise.all(timedPromises);
 
     console.log(`[${requestId}] Source results:`, results.map(r => ({ source: r.source, success: r.data?.success, latencyMs: r.latencyMs })));
 

@@ -9,30 +9,31 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
-import { 
-  Barcode, 
-  Search, 
-  Loader2, 
-  Star, 
-  TrendingUp, 
-  CheckCircle2, 
-  XCircle, 
-  AlertCircle,
+import { Separator } from '@/components/ui/separator';
+import {
+  Barcode,
+  Search,
+  Loader2,
+  Star,
+  TrendingUp,
   Plus,
   RotateCcw,
   Flame,
   Sparkles,
   LogIn,
-  Zap
+  Zap,
+  AlertCircle,
+  XCircle
 } from 'lucide-react';
 import { BarcodeScanner, type ParsedUPC } from './BarcodeScanner';
 import { ContinuousHunting } from './ContinuousHunting';
 import { EnhancedValueDisplay } from './EnhancedValueDisplay';
-import { OwnedBadge } from './OwnedBadge';
+import { OwnedBadge, MissingBadge } from './OwnedBadge';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { useHuntingFeedback } from '@/hooks/useHuntingFeedback';
+import { useScanResultCache, CachedScanResult } from '@/hooks/useScanResultCache';
 import { getIssueKey } from '@/hooks/useGroupedComics';
 import type { Comic } from '@/types/comic';
 
@@ -48,27 +49,27 @@ type Verdict = 'get' | 'consider' | 'pass' | null;
 interface HuntingResult {
   title: string;
   issueNumber: string;
-  publisher: string;
+  publisher?: string;
   variant?: string;
   coverImageUrl?: string;
   isKeyIssue: boolean;
   keyIssueReason?: string;
   // Enhanced value data
   rawValue?: number;
-  gradedValue98?: number; // 9.8 value
+  gradedValue98?: number;
   valueRange?: { low: number; high: number };
   valueConfidence?: 'high' | 'medium' | 'low';
   confidenceScore?: number;
   verdict: Verdict;
   // Enhanced ownership data
   alreadyOwned: boolean;
-  ownedCopyCount?: number;
+  ownedCopyCount: number;
 }
 
 function getVerdict(result: Partial<HuntingResult>): Verdict {
   const rawValue = result.rawValue || 0;
   const isKeyIssue = result.isKeyIssue || false;
-  
+
   if (rawValue >= 50 || isKeyIssue) {
     return 'get';
   } else if (rawValue >= 15 || result.issueNumber === '1') {
@@ -79,27 +80,27 @@ function getVerdict(result: Partial<HuntingResult>): Verdict {
 
 function VerdictBadge({ verdict }: { verdict: Verdict }) {
   if (!verdict) return null;
-  
+
   const config = {
-    get: { 
-      icon: Flame, 
-      label: 'GET IT!', 
-      className: 'bg-green-500/20 text-green-400 border-green-500/30 animate-pulse' 
+    get: {
+      icon: Flame,
+      label: 'GET IT!',
+      className: 'bg-green-500/20 text-green-400 border-green-500/30 animate-pulse'
     },
-    consider: { 
-      icon: AlertCircle, 
-      label: 'CONSIDER', 
-      className: 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30' 
+    consider: {
+      icon: AlertCircle,
+      label: 'CONSIDER',
+      className: 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30'
     },
-    pass: { 
-      icon: XCircle, 
-      label: 'PASS', 
-      className: 'bg-muted text-muted-foreground border-border' 
+    pass: {
+      icon: XCircle,
+      label: 'PASS',
+      className: 'bg-muted text-muted-foreground border-border'
     },
   };
-  
+
   const { icon: Icon, label, className } = config[verdict];
-  
+
   return (
     <Badge variant="outline" className={`text-lg px-4 py-2 gap-2 ${className}`}>
       <Icon className="w-5 h-5" />
@@ -117,33 +118,59 @@ export function HuntingMode({ open, onOpenChange, onAddToCollection, ownedComics
   const { toast } = useToast();
   const { user } = useAuth();
   const { triggerFeedback } = useHuntingFeedback();
+  const { get: getCachedResult, set: setCachedResult } = useScanResultCache();
 
-  const checkIfOwned = useCallback((title: string, issueNumber: string, publisher: string, variant?: string) => {
-    const tempComic: Partial<Comic> = {
+  // Variant-aware collection check using getIssueKey
+  const checkIfOwned = useCallback((title: string, issueNumber: string, publisher?: string, variant?: string): { isOwned: boolean; copyCount: number } => {
+    const tempComic = {
       title,
       issueNumber,
       publisher: publisher || '',
-      variant: variant || '',
-    };
-    const issueKey = getIssueKey(tempComic as Comic);
-    const matchingComics = ownedComics.filter(c => getIssueKey(c) === issueKey);
+      variant_type: variant || '',
+    } as unknown as Comic;
+
+    const issueKey = getIssueKey(tempComic);
+    const matchingCopies = ownedComics.filter(c => getIssueKey(c) === issueKey);
 
     return {
-      isOwned: matchingComics.length > 0,
-      copyCount: matchingComics.length,
+      isOwned: matchingCopies.length > 0,
+      copyCount: matchingCopies.length,
     };
   }, [ownedComics]);
 
   const lookupComic = useCallback(async (title: string, issueNumber: string, publisher?: string, barcode?: string) => {
     setIsSearching(true);
     setResult(null);
-    
+
     try {
+      // Generate issue key for caching
+      const tempComic = {
+        title,
+        issueNumber,
+        publisher: publisher || '',
+        variant_type: '',
+      } as unknown as Comic;
+      const issueKey = getIssueKey(tempComic);
+
+      // Check cache first
+      const cached = getCachedResult(issueKey);
+      if (cached) {
+        const huntingResult: HuntingResult = {
+          ...cached,
+          alreadyOwned: cached.alreadyOwned,
+          ownedCopyCount: cached.ownedCopyCount,
+        };
+        setResult(huntingResult);
+        triggerFeedback(cached.verdict, cached.isKeyIssue);
+        setIsSearching(false);
+        return;
+      }
+
       // Step 1: Search for comic info
-      const searchBody = barcode 
-        ? { barcode } 
+      const searchBody = barcode
+        ? { barcode }
         : { title, issueNumber, publisher };
-      
+
       const { data: searchData, error: searchError } = await supabase.functions.invoke('search-metron', {
         body: searchBody
       });
@@ -151,7 +178,7 @@ export function HuntingMode({ open, onOpenChange, onAddToCollection, ownedComics
       if (searchError) throw searchError;
 
       let comicInfo = searchData?.results?.[0];
-      
+
       // Fallback to generic search if Metron fails
       if (!comicInfo && !barcode) {
         const { data: fallbackData } = await supabase.functions.invoke('search-comic', {
@@ -170,12 +197,20 @@ export function HuntingMode({ open, onOpenChange, onAddToCollection, ownedComics
         return;
       }
 
-      // Step 2: Fetch value data (multi-source aggregation)
+      // Check ownership (variant-aware)
+      const { isOwned, copyCount } = checkIfOwned(
+        comicInfo.title,
+        comicInfo.issueNumber,
+        comicInfo.publisher,
+        comicInfo.variant
+      );
+
+      // Step 2: Fetch aggregated value data
       let rawValue: number | undefined;
       let gradedValue98: number | undefined;
       let valueRange: { low: number; high: number } | undefined;
-      let valueConfidence: 'high' | 'medium' | 'low' | undefined;
       let confidenceScore: number | undefined;
+      let valueConfidence: 'high' | 'medium' | 'low' = 'low';
 
       try {
         const { data: valueData } = await supabase.functions.invoke('aggregate-comic-data', {
@@ -184,23 +219,23 @@ export function HuntingMode({ open, onOpenChange, onAddToCollection, ownedComics
             issue_number: comicInfo.issueNumber,
             publisher: comicInfo.publisher,
             grade_status: 'raw',
-            include_sources: ['gocollect', 'ebay'], // Fast sources only for hunting
+            include_sources: ['gocollect', 'ebay'], // Fast sources only
           }
         });
 
-        if (valueData) {
-          rawValue = valueData.recommendedValue;
-          gradedValue98 = valueData.fmvByGrade?.['9.8']?.recommended;
-          valueRange = valueData.valueRange;
-          valueConfidence = valueData.confidence;
-          confidenceScore = valueData.confidenceScore;
+        if (valueData?.success !== false) {
+          rawValue = valueData?.recommendedValue || valueData?.rawValue;
+          gradedValue98 = valueData?.fmvByGrade?.['9.8']?.recommended || valueData?.graded98Value;
+          valueRange = valueData?.valueRange;
+          confidenceScore = valueData?.confidenceScore;
+          valueConfidence = confidenceScore && confidenceScore >= 70 ? 'high' :
+                           confidenceScore && confidenceScore >= 40 ? 'medium' : 'low';
         }
       } catch (err) {
         console.log('Value lookup failed, continuing without values');
       }
 
       // Build result
-      const ownershipInfo = checkIfOwned(comicInfo.title, comicInfo.issueNumber, comicInfo.publisher, comicInfo.variant);
       const partialResult = {
         title: comicInfo.title,
         issueNumber: comicInfo.issueNumber,
@@ -214,14 +249,35 @@ export function HuntingMode({ open, onOpenChange, onAddToCollection, ownedComics
         valueRange,
         valueConfidence,
         confidenceScore,
-        alreadyOwned: ownershipInfo.isOwned,
-        ownedCopyCount: ownershipInfo.copyCount,
+        alreadyOwned: isOwned,
+        ownedCopyCount: copyCount,
         verdict: null as Verdict,
       };
 
       partialResult.verdict = getVerdict(partialResult);
+
+      // Cache the result
+      const cacheEntry: CachedScanResult = {
+        title: partialResult.title,
+        issueNumber: partialResult.issueNumber,
+        publisher: partialResult.publisher,
+        variant: partialResult.variant,
+        coverImageUrl: partialResult.coverImageUrl,
+        isKeyIssue: partialResult.isKeyIssue,
+        keyIssueReason: partialResult.keyIssueReason,
+        rawValue,
+        gradedValue98,
+        valueRange,
+        valueConfidence,
+        confidenceScore,
+        verdict: partialResult.verdict,
+        alreadyOwned: isOwned,
+        ownedCopyCount: copyCount,
+      };
+      setCachedResult(issueKey, cacheEntry);
+
       setResult(partialResult);
-      
+
       // Trigger audio/haptic feedback based on verdict
       triggerFeedback(partialResult.verdict, partialResult.isKeyIssue);
 
@@ -235,7 +291,7 @@ export function HuntingMode({ open, onOpenChange, onAddToCollection, ownedComics
     } finally {
       setIsSearching(false);
     }
-  }, [checkIfOwned, toast, triggerFeedback]);
+  }, [checkIfOwned, toast, triggerFeedback, getCachedResult, setCachedResult]);
 
   const handleBarcodeScan = useCallback(async (barcode: string, format: string, parsedUPC?: ParsedUPC) => {
     console.log('Hunting mode scan:', barcode, format);
@@ -250,7 +306,7 @@ export function HuntingMode({ open, onOpenChange, onAddToCollection, ownedComics
 
   const handleAddToCollection = useCallback(() => {
     if (!result) return;
-    
+
     // Check if user is authenticated
     if (!user) {
       toast({
@@ -260,9 +316,9 @@ export function HuntingMode({ open, onOpenChange, onAddToCollection, ownedComics
       });
       return;
     }
-    
+
     if (!onAddToCollection) return;
-    
+
     onAddToCollection({
       title: result.title,
       issueNumber: result.issueNumber,
@@ -280,8 +336,12 @@ export function HuntingMode({ open, onOpenChange, onAddToCollection, ownedComics
       description: `${result.title} #${result.issueNumber} has been added.`,
     });
 
-    // Reset for next scan
-    handleReset();
+    // Update result to show as owned
+    setResult(prev => prev ? {
+      ...prev,
+      alreadyOwned: true,
+      ownedCopyCount: prev.ownedCopyCount + 1
+    } : null);
   }, [result, onAddToCollection, toast, user]);
 
   const handleReset = useCallback(() => {
@@ -294,11 +354,6 @@ export function HuntingMode({ open, onOpenChange, onAddToCollection, ownedComics
     handleReset();
     onOpenChange(false);
   }, [handleReset, onOpenChange]);
-
-  const formatValue = (value?: number) => {
-    if (!value) return '—';
-    return `$${value.toLocaleString()}`;
-  };
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
@@ -325,11 +380,21 @@ export function HuntingMode({ open, onOpenChange, onAddToCollection, ownedComics
           {/* Results Display */}
           {result ? (
             <div className="space-y-4 animate-fade-in">
+              {/* Verdict & Ownership Header */}
+              <div className="flex items-center justify-between">
+                <VerdictBadge verdict={result.verdict} />
+                {result.alreadyOwned ? (
+                  <OwnedBadge isOwned={true} copyCount={result.ownedCopyCount} size="lg" />
+                ) : (
+                  <MissingBadge size="lg" />
+                )}
+              </div>
+
               {/* Cover & Basic Info */}
               <div className="flex gap-4">
                 {result.coverImageUrl ? (
-                  <img 
-                    src={result.coverImageUrl} 
+                  <img
+                    src={result.coverImageUrl}
                     alt={result.title}
                     className="w-24 h-36 object-cover rounded-lg shadow-lg"
                   />
@@ -338,59 +403,48 @@ export function HuntingMode({ open, onOpenChange, onAddToCollection, ownedComics
                     <Barcode className="w-8 h-8 text-muted-foreground" />
                   </div>
                 )}
-                
+
                 <div className="flex-1 min-w-0">
                   <h3 className="font-display text-xl truncate">{result.title}</h3>
                   <p className="text-muted-foreground">#{result.issueNumber}</p>
                   <p className="text-sm text-muted-foreground">{result.publisher}</p>
-                  
-                  {result.isKeyIssue && (
-                    <div className="mt-2 flex items-center gap-1 text-primary">
-                      <Star className="w-4 h-4 fill-primary" />
-                      <span className="text-sm font-medium">Key Issue</span>
-                    </div>
-                  )}
-                  
-                  {result.keyIssueReason && (
-                    <p className="text-xs text-muted-foreground mt-1 italic">
-                      "{result.keyIssueReason}"
-                    </p>
+                  {result.variant && (
+                    <Badge variant="outline" className="mt-1">{result.variant}</Badge>
                   )}
                 </div>
               </div>
 
-              {/* Enhanced Value Display */}
-              <div className="bg-secondary/30 rounded-lg p-4">
-                <EnhancedValueDisplay
-                  rawValue={result.rawValue}
-                  gradedValue98={result.gradedValue98}
-                  valueRange={result.valueRange}
-                  confidence={result.valueConfidence}
-                  confidenceScore={result.confidenceScore}
-                  compact={false}
-                  showRange={true}
-                />
-              </div>
+              <Separator />
 
-              {/* Verdict */}
-              <div className="flex justify-center py-2">
-                <VerdictBadge verdict={result.verdict} />
-              </div>
+              {/* Value Display - Most Prominent */}
+              <EnhancedValueDisplay
+                rawValue={result.rawValue}
+                gradedValue98={result.gradedValue98}
+                valueRange={result.valueRange}
+                confidence={result.valueConfidence}
+                confidenceScore={result.confidenceScore}
+              />
 
-              {/* Ownership Status Badge */}
-              <div className="flex justify-center py-2">
-                <OwnedBadge
-                  isOwned={result.alreadyOwned}
-                  copyCount={result.ownedCopyCount}
-                  size="lg"
-                />
-              </div>
+              {/* Key Issue Badge */}
+              {result.isKeyIssue && (
+                <div className="flex items-center gap-2 p-3 rounded-lg bg-primary/10 border border-primary/30">
+                  <Star className="w-5 h-5 fill-primary text-primary" />
+                  <div>
+                    <p className="font-medium text-primary">Key Issue</p>
+                    {result.keyIssueReason && (
+                      <p className="text-xs text-muted-foreground italic">
+                        "{result.keyIssueReason}"
+                      </p>
+                    )}
+                  </div>
+                </div>
+              )}
 
               {/* Actions */}
               <div className="flex gap-2 pt-2">
                 {onAddToCollection && !result.alreadyOwned && (
-                  <Button 
-                    className="flex-1 min-h-[48px]" 
+                  <Button
+                    className="flex-1 min-h-[48px]"
                     onClick={handleAddToCollection}
                     disabled={!user}
                   >
@@ -398,8 +452,8 @@ export function HuntingMode({ open, onOpenChange, onAddToCollection, ownedComics
                     {user ? 'Add to Collection' : 'Login to Add'}
                   </Button>
                 )}
-                <Button 
-                  variant="outline" 
+                <Button
+                  variant="outline"
                   className={`min-h-[48px] ${onAddToCollection && !result.alreadyOwned ? '' : 'flex-1'}`}
                   onClick={handleReset}
                 >
@@ -427,7 +481,7 @@ export function HuntingMode({ open, onOpenChange, onAddToCollection, ownedComics
               </TabsList>
 
               <TabsContent value="rapid" className="mt-4">
-                <ContinuousHunting 
+                <ContinuousHunting
                   ownedComics={ownedComics}
                   onExit={() => setActiveTab('scan')}
                 />
@@ -440,12 +494,12 @@ export function HuntingMode({ open, onOpenChange, onAddToCollection, ownedComics
                     <p className="text-muted-foreground">Looking up comic...</p>
                   </div>
                 ) : (
-                  <BarcodeScanner 
+                  <BarcodeScanner
                     onScan={handleBarcodeScan}
-                    onError={(err) => toast({ 
-                      title: 'Scanner Error', 
-                      description: err, 
-                      variant: 'destructive' 
+                    onError={(err) => toast({
+                      title: 'Scanner Error',
+                      description: err,
+                      variant: 'destructive'
                     })}
                   />
                 )}
@@ -469,17 +523,17 @@ export function HuntingMode({ open, onOpenChange, onAddToCollection, ownedComics
                       className="min-h-[48px]"
                     />
                   </div>
-                  <Button 
-                    type="submit" 
+                  <Button
+                    type="submit"
                     className="w-full min-h-[48px]"
                     disabled={!searchTitle.trim() || isSearching}
                   >
                     {isSearching ? (
                       <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                     ) : (
-                      <Search className="w-4 h-4 mr-2" />
+                      <TrendingUp className="w-4 h-4 mr-2" />
                     )}
-                    Look Up Comic
+                    Get Value
                   </Button>
                 </form>
               </TabsContent>

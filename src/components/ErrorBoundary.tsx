@@ -20,31 +20,23 @@ interface State {
  * Catches JavaScript errors anywhere in the child component tree,
  * logs the errors, and displays a fallback UI instead of crashing the app.
  */
-class ErrorBoundary extends Component<Props, State> {
-  constructor(props: Props) {
-    super(props);
-    this.state = {
-      hasError: false,
-      error: null,
-      errorInfo: null,
-    };
-  }
+export class ErrorBoundary extends Component<Props, State> {
+  public state: State = {
+    hasError: false,
+    error: null,
+    errorInfo: null,
+  };
 
-  static getDerivedStateFromError(error: Error): State {
-    // Update state so the next render will show the fallback UI
+  public static getDerivedStateFromError(error: Error): Partial<State> {
     return {
       hasError: true,
       error,
-      errorInfo: null,
     };
   }
 
-  componentDidCatch(error: Error, errorInfo: ErrorInfo) {
+  public componentDidCatch(error: Error, errorInfo: ErrorInfo) {
     // Log the error to console and any error reporting service
     logger.error('Error caught by Error Boundary:', error, errorInfo);
-
-    // You can also log the error to an error reporting service here
-    // Example: Sentry.captureException(error, { extra: errorInfo });
 
     this.setState({
       error,
@@ -52,24 +44,24 @@ class ErrorBoundary extends Component<Props, State> {
     });
   }
 
-  handleReset = () => {
+  private handleReset = () => {
     this.setState({
       hasError: false,
       error: null,
       errorInfo: null,
     });
-    // Optionally reload the page
+    // Reload the page
     window.location.reload();
   };
 
-  render() {
+  public render() {
     if (this.state.hasError) {
       // Custom fallback UI provided by parent
       if (this.props.fallback) {
         return this.props.fallback;
       }
 
-      // Default fallback UI
+      // Default fallback UI with Card components
       return (
         <div className="min-h-screen bg-background flex items-center justify-center p-4">
           <Card className="max-w-lg w-full">
@@ -118,5 +110,3 @@ class ErrorBoundary extends Component<Props, State> {
     return this.props.children;
   }
 }
-
-export default ErrorBoundary;

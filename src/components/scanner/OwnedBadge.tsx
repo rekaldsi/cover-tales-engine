@@ -1,5 +1,5 @@
-import { Check, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { Check, BookCopy } from 'lucide-react';
 
 interface OwnedBadgeProps {
   isOwned: boolean;
@@ -7,62 +7,52 @@ interface OwnedBadgeProps {
   size?: 'sm' | 'md' | 'lg';
 }
 
-/**
- * Ownership status badge for hunting mode
- * Shows whether comic is already in collection
- */
-export function OwnedBadge({
-  isOwned,
-  copyCount = 1,
-  size = 'md',
-}: OwnedBadgeProps) {
-  const sizeConfig = {
-    sm: {
-      text: 'text-xs',
-      padding: 'px-2 py-0.5',
-      icon: 'w-3 h-3',
-    },
-    md: {
-      text: 'text-sm',
-      padding: 'px-3 py-1',
-      icon: 'w-4 h-4',
-    },
-    lg: {
-      text: 'text-base',
-      padding: 'px-4 py-1.5',
-      icon: 'w-5 h-5',
-    },
-  };
+const sizeStyles = {
+  sm: 'px-1.5 py-0.5 text-xs gap-0.5',
+  md: 'px-2 py-1 text-sm gap-1',
+  lg: 'px-3 py-1.5 text-base gap-1.5',
+};
 
-  const config = sizeConfig[size];
+const iconSizes = {
+  sm: 'h-3 w-3',
+  md: 'h-4 w-4',
+  lg: 'h-5 w-5',
+};
 
-  if (isOwned) {
-    return (
-      <div
-        className={cn(
-          'inline-flex items-center gap-1.5 rounded-full font-semibold',
-          'bg-green-500 text-white',
-          config.padding,
-          config.text
-        )}
-      >
-        <Check className={config.icon} />
-        <span>OWNED{copyCount > 1 ? ` x${copyCount}` : ''}</span>
-      </div>
-    );
-  }
+export function OwnedBadge({ isOwned, copyCount = 1, size = 'md' }: OwnedBadgeProps) {
+  if (!isOwned) return null;
+
+  const showCount = copyCount > 1;
 
   return (
     <div
       className={cn(
-        'inline-flex items-center gap-1.5 rounded-full font-medium',
-        'bg-muted text-muted-foreground',
-        config.padding,
-        config.text
+        'inline-flex items-center font-semibold rounded-full',
+        'bg-green-500/20 text-green-500 border border-green-500/30',
+        sizeStyles[size]
       )}
     >
-      <X className={config.icon} />
-      <span>Missing</span>
+      {showCount ? (
+        <BookCopy className={iconSizes[size]} />
+      ) : (
+        <Check className={iconSizes[size]} />
+      )}
+      <span>OWNED{showCount && ` ×${copyCount}`}</span>
+    </div>
+  );
+}
+
+// Inverse badge for when comic is NOT owned (missing from collection)
+export function MissingBadge({ size = 'md' }: { size?: 'sm' | 'md' | 'lg' }) {
+  return (
+    <div
+      className={cn(
+        'inline-flex items-center font-semibold rounded-full',
+        'bg-blue-500/20 text-blue-500 border border-blue-500/30',
+        sizeStyles[size]
+      )}
+    >
+      <span>MISSING</span>
     </div>
   );
 }

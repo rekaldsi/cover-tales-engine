@@ -5,10 +5,10 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
-import ErrorBoundary from "@/components/ErrorBoundary";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { Loader2 } from "lucide-react";
 
-// Code splitting: Load pages only when needed
+// Lazy load all pages for code splitting
 const Index = lazy(() => import("./pages/Index"));
 const CollectionPage = lazy(() => import("./pages/CollectionPage"));
 const CreatorsPage = lazy(() => import("./pages/CreatorsPage"));
@@ -18,33 +18,34 @@ const Auth = lazy(() => import("./pages/Auth"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 const DebugHealth = lazy(() => import("./pages/DebugHealth"));
 
+// Configure QueryClient with best practices
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      // Data remains fresh for 5 minutes
-      staleTime: 5 * 60 * 1000,
-      // Cache data for 10 minutes
-      gcTime: 10 * 60 * 1000,
-      // Don't refetch on window focus (reduces unnecessary API calls)
+      staleTime: 5 * 60 * 1000, // 5 minutes
+      gcTime: 10 * 60 * 1000, // 10 minutes (formerly cacheTime)
       refetchOnWindowFocus: false,
-      // Retry failed requests once
       retry: 1,
-      // Don't retry on 4xx errors
       retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
     },
   },
 });
+
+// Loading spinner for Suspense fallback
+function PageLoader() {
+  return (
+    <div className="min-h-screen bg-background flex items-center justify-center">
+      <Loader2 className="w-8 h-8 animate-spin text-primary" />
+    </div>
+  );
+}
 
 // Protected route wrapper
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, isLoading } = useAuth();
 
   if (isLoading) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <Loader2 className="w-8 h-8 animate-spin text-primary" />
-      </div>
-    );
+    return <PageLoader />;
   }
 
   if (!user) {
@@ -52,15 +53,6 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
   }
 
   return <>{children}</>;
-}
-
-// Loading fallback component
-function PageLoader() {
-  return (
-    <div className="min-h-screen bg-background flex items-center justify-center">
-      <Loader2 className="w-8 h-8 animate-spin text-primary" />
-    </div>
-  );
 }
 
 function AppRoutes() {

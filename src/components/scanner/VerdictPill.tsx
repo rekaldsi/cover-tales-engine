@@ -1,8 +1,7 @@
-import { useEffect, useState } from 'react';
-import { Flame, AlertCircle, XCircle, Star } from 'lucide-react';
+import { useEffect, useState, useCallback } from 'react';
+import { Flame, AlertCircle, XCircle, Star, TrendingUp, Minus, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { EnhancedValueDisplay } from './EnhancedValueDisplay';
-import { OwnedBadge } from './OwnedBadge';
+import { OwnedBadge, MissingBadge } from './OwnedBadge';
 
 type Verdict = 'get' | 'consider' | 'pass' | null;
 
@@ -10,32 +9,47 @@ interface VerdictPillProps {
   verdict: Verdict;
   title: string;
   issueNumber: string;
-  // Enhanced value props
-  value?: number;
+  publisher?: string;
+  rawValue?: number;
   gradedValue98?: number;
   valueRange?: { low: number; high: number };
   confidence?: 'high' | 'medium' | 'low';
   confidenceScore?: number;
-  // Status props
   isKeyIssue?: boolean;
-  isMissing?: boolean;
-  ownedCopyCount?: number;
+  isOwned?: boolean;
+  copyCount?: number;
   onDismiss?: () => void;
   autoDismissMs?: number;
 }
+
+const formatValue = (value: number | undefined): string => {
+  if (value === undefined || value === null) return '—';
+  if (value >= 1000) {
+    return `$${(value / 1000).toFixed(1)}k`;
+  }
+  return `$${value.toFixed(0)}`;
+};
+
+const getValueColor = (value: number | undefined): string => {
+  if (!value) return 'text-white/70';
+  if (value >= 50) return 'text-green-400';
+  if (value >= 15) return 'text-yellow-400';
+  return 'text-white/70';
+};
 
 export function VerdictPill({
   verdict,
   title,
   issueNumber,
-  value,
+  publisher,
+  rawValue,
   gradedValue98,
   valueRange,
   confidence,
   confidenceScore,
   isKeyIssue,
-  isMissing,
-  ownedCopyCount,
+  isOwned,
+  copyCount,
   onDismiss,
   autoDismissMs = 4000,
 }: VerdictPillProps) {
@@ -57,34 +71,34 @@ export function VerdictPill({
     return () => clearTimeout(timer);
   }, [autoDismissMs, onDismiss]);
 
-  const handleDismiss = () => {
+  const handleDismiss = useCallback(() => {
     setIsExiting(true);
     setTimeout(() => {
       onDismiss?.();
     }, 300);
-  };
+  }, [onDismiss]);
 
   const config = {
     get: {
       icon: Flame,
       label: 'GET IT!',
-      bgClass: 'bg-green-500',
+      bgClass: 'bg-green-600',
       textClass: 'text-white',
-      borderClass: 'border-green-400',
+      borderClass: 'border-green-500',
     },
     consider: {
       icon: AlertCircle,
       label: 'CONSIDER',
-      bgClass: 'bg-yellow-500',
-      textClass: 'text-black',
-      borderClass: 'border-yellow-400',
+      bgClass: 'bg-yellow-600',
+      textClass: 'text-white',
+      borderClass: 'border-yellow-500',
     },
     pass: {
       icon: XCircle,
       label: 'PASS',
-      bgClass: 'bg-muted',
-      textClass: 'text-muted-foreground',
-      borderClass: 'border-border',
+      bgClass: 'bg-gray-600',
+      textClass: 'text-white',
+      borderClass: 'border-gray-500',
     },
   };
 
@@ -106,55 +120,99 @@ export function VerdictPill({
       <div
         className={cn(
           'rounded-2xl shadow-2xl border-2 overflow-hidden',
-          'min-w-[200px] max-w-[300px]',
-          'bg-background',
-          'border-border'
+          'min-w-[240px] max-w-[320px]',
+          bgClass,
+          borderClass
         )}
       >
-        {/* Verdict Badge (smaller, at top) */}
-        <div className={cn('flex items-center justify-center gap-2 py-2 px-4', bgClass, textClass)}>
-          <Icon className="w-4 h-4" />
-          <span className="font-display text-sm font-bold tracking-wide">{label}</span>
+        {/* Verdict header */}
+        <div className={cn('flex items-center justify-between px-4 py-2', textClass)}>
+          <div className="flex items-center gap-2">
+            <Icon className="w-5 h-5" />
+            <span className="font-display text-lg font-bold tracking-wide">{label}</span>
+          </div>
+          <button
+            onClick={(e) => { e.stopPropagation(); handleDismiss(); }}
+            className="p-1 rounded-full hover:bg-white/20 transition-colors"
+          >
+            <X className="h-4 w-4" />
+          </button>
         </div>
 
-        {/* Comic Info */}
-        <div className="px-4 py-2 border-b border-border">
-          <p className="font-medium text-foreground text-sm truncate">
-            {title} #{issueNumber}
-          </p>
-        </div>
+        {/* Content area */}
+        <div className="bg-black/50 backdrop-blur-sm px-4 py-3 space-y-3">
+          {/* Comic info */}
+          <div>
+            <p className="font-semibold text-white text-base leading-tight truncate">
+              {title} #{issueNumber}
+            </p>
+            {publisher && (
+              <p className="text-white/60 text-sm">{publisher}</p>
+            )}
+          </div>
 
-        {/* VALUE - Most Prominent Section */}
-        <div className="px-4 py-3 bg-secondary/30">
-          <EnhancedValueDisplay
-            rawValue={value}
-            gradedValue98={gradedValue98}
-            valueRange={valueRange}
-            confidence={confidence}
-            confidenceScore={confidenceScore}
-            compact={true}
-            showRange={false}
-          />
-        </div>
-
-        {/* Status Badges */}
-        <div className="px-4 py-2 flex items-center justify-center gap-2">
-          <OwnedBadge
-            isOwned={!isMissing}
-            copyCount={ownedCopyCount}
-            size="sm"
-          />
-          {isKeyIssue && (
-            <div className="flex items-center gap-1 bg-primary/20 text-primary text-xs px-2 py-1 rounded-full font-medium">
-              <Star className="w-3 h-3 fill-primary" />
-              Key Issue
+          {/* Value Display - PRIMARY (most prominent) */}
+          <div className="space-y-1">
+            {/* Raw Value - Large */}
+            <div className="flex items-baseline gap-2">
+              <span className="text-white/60 text-xs uppercase tracking-wide">Raw:</span>
+              <span className={cn('text-2xl font-bold', getValueColor(rawValue))}>
+                {formatValue(rawValue)}
+              </span>
             </div>
-          )}
+
+            {/* 9.8 Graded Value - Secondary */}
+            {gradedValue98 && (
+              <div className="flex items-baseline gap-2">
+                <span className="text-white/60 text-xs uppercase tracking-wide">9.8:</span>
+                <span className={cn('text-lg font-semibold', getValueColor(gradedValue98))}>
+                  {formatValue(gradedValue98)}
+                </span>
+              </div>
+            )}
+
+            {/* Value Range & Confidence */}
+            {(valueRange || confidenceScore !== undefined) && (
+              <div className="flex items-center gap-3 text-xs pt-1">
+                {valueRange && (
+                  <span className="text-white/50">
+                    {formatValue(valueRange.low)}–{formatValue(valueRange.high)}
+                  </span>
+                )}
+                {confidenceScore !== undefined && (
+                  <span className={cn(
+                    'flex items-center gap-1',
+                    confidence === 'high' ? 'text-green-400' :
+                    confidence === 'medium' ? 'text-yellow-400' : 'text-orange-400'
+                  )}>
+                    {confidence === 'high' ? <TrendingUp className="h-3 w-3" /> : <Minus className="h-3 w-3" />}
+                    {confidenceScore}%
+                  </span>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Status Badges Row */}
+          <div className="flex items-center gap-2 flex-wrap">
+            {isOwned ? (
+              <OwnedBadge isOwned={true} copyCount={copyCount} size="sm" />
+            ) : (
+              <MissingBadge size="sm" />
+            )}
+
+            {isKeyIssue && (
+              <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-yellow-500/20 text-yellow-400 border border-yellow-500/30 text-xs font-semibold">
+                <Star className="h-3 w-3 fill-current" />
+                <span>Key Issue</span>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
       {/* Tap to dismiss hint */}
-      <p className="text-center text-xs text-muted-foreground mt-2 opacity-70">
+      <p className="text-center text-xs text-white/50 mt-2">
         Tap to dismiss
       </p>
     </div>

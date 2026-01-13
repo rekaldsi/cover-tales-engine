@@ -1,30 +1,45 @@
 import { useRef, useCallback } from 'react';
 
-interface CachedResult<T> {
+export interface CachedScanResult {
+  title: string;
+  issueNumber: string;
+  publisher?: string;
+  variant?: string;
+  coverImageUrl?: string;
+  isKeyIssue: boolean;
+  keyIssueReason?: string;
+  rawValue?: number;
+  gradedValue98?: number;
+  valueRange?: { low: number; high: number };
+  valueConfidence?: 'high' | 'medium' | 'low';
+  confidenceScore?: number;
+  verdict: 'get' | 'consider' | 'pass' | null;
+  alreadyOwned: boolean;
+  ownedCopyCount?: number;
+}
+
+interface CacheEntry {
   issueKey: string;
-  result: T;
+  result: CachedScanResult;
   timestamp: number;
 }
 
 /**
- * LRU cache for scan results with time-based expiration
- * Prevents duplicate API calls during hunting session
+ * LRU cache hook for scan results during hunting sessions
+ * Prevents duplicate API calls when rescanning the same comic
  *
  * @param maxSize - Maximum number of entries (default: 50)
  * @param ttlMs - Time-to-live in milliseconds (default: 5 minutes)
  */
-export function useScanResultCache<T = any>(maxSize = 50, ttlMs = 300000) {
-  const cacheRef = useRef<Map<string, CachedResult<T>>>(new Map());
+export function useScanResultCache(maxSize = 50, ttlMs = 300000) {
+  const cacheRef = useRef<Map<string, CacheEntry>>(new Map());
 
   /**
    * Get cached result if not expired
    */
-  const get = useCallback((issueKey: string): T | null => {
+  const get = useCallback((issueKey: string): CachedScanResult | null => {
     const cached = cacheRef.current.get(issueKey);
-
-    if (!cached) {
-      return null;
-    }
+    if (!cached) return null;
 
     // Check if expired
     if (Date.now() - cached.timestamp > ttlMs) {
@@ -32,14 +47,18 @@ export function useScanResultCache<T = any>(maxSize = 50, ttlMs = 300000) {
       return null;
     }
 
+    // Move to end for LRU ordering
+    cacheRef.current.delete(issueKey);
+    cacheRef.current.set(issueKey, cached);
+
     return cached.result;
   }, [ttlMs]);
 
   /**
    * Set result in cache with LRU eviction
    */
-  const set = useCallback((issueKey: string, result: T) => {
-    // LRU eviction: Remove oldest entry if at capacity
+  const set = useCallback((issueKey: string, result: CachedScanResult) => {
+    // LRU eviction if at capacity
     if (cacheRef.current.size >= maxSize) {
       const firstKey = cacheRef.current.keys().next().value;
       if (firstKey) {
@@ -62,6 +81,26 @@ export function useScanResultCache<T = any>(maxSize = 50, ttlMs = 300000) {
   }, []);
 
   /**
+   * Check if key exists and is not expired
+   */
+  const has = useCallback((issueKey: string): boolean => {
+    const cached = cacheRef.current.get(issueKey);
+    if (!cached) return false;
+
+    if (Date.now() - cached.timestamp > ttlMs) {
+      cacheRef.current.delete(issueKey);
+      return false;
+    }
+
+    return true;
+  }, [ttlMs]);
+
+  /**
+   * Get current cache size
+   */
+  const size = useCallback(() => cacheRef.current.size, []);
+
+  /**
    * Get cache stats for debugging
    */
   const getStats = useCallback(() => {
@@ -72,5 +111,5 @@ export function useScanResultCache<T = any>(maxSize = 50, ttlMs = 300000) {
     };
   }, [maxSize, ttlMs]);
 
-  return { get, set, clear, getStats };
+  return { get, set, clear, has, size, getStats };
 }

@@ -10,7 +10,7 @@ export const logger = {
   /**
    * Log general information (disabled in production)
    */
-  log: (...args: any[]) => {
+  log: (...args: unknown[]) => {
     if (isDev) {
       console.log(...args);
     }
@@ -19,7 +19,7 @@ export const logger = {
   /**
    * Log warnings (disabled in production)
    */
-  warn: (...args: any[]) => {
+  warn: (...args: unknown[]) => {
     if (isDev) {
       console.warn(...args);
     }
@@ -28,23 +28,32 @@ export const logger = {
   /**
    * Log errors (enabled in production for monitoring)
    */
-  error: (...args: any[]) => {
+  error: (...args: unknown[]) => {
     console.error(...args);
   },
 
   /**
    * Log debug information (disabled in production)
    */
-  debug: (...args: any[]) => {
+  debug: (...args: unknown[]) => {
     if (isDev) {
       console.debug(...args);
     }
   },
 
   /**
+   * Log info (disabled in production)
+   */
+  info: (...args: unknown[]) => {
+    if (isDev) {
+      console.info(...args);
+    }
+  },
+
+  /**
    * Log with group (disabled in production)
    */
-  group: (label: string, ...args: any[]) => {
+  group: (label: string, ...args: unknown[]) => {
     if (isDev) {
       console.group(label);
       console.log(...args);
@@ -55,9 +64,20 @@ export const logger = {
   /**
    * Log table data (disabled in production)
    */
-  table: (data: any) => {
+  table: (data: unknown) => {
     if (isDev) {
       console.table(data);
     }
   },
+
+  /**
+   * Prefixed logging for specific modules
+   */
+  module: (name: string) => ({
+    log: (...args: unknown[]) => isDev && console.log(`[${name}]`, ...args),
+    warn: (...args: unknown[]) => isDev && console.warn(`[${name}]`, ...args),
+    error: (...args: unknown[]) => console.error(`[${name}]`, ...args),
+    debug: (...args: unknown[]) => isDev && console.debug(`[${name}]`, ...args),
+    info: (...args: unknown[]) => isDev && console.info(`[${name}]`, ...args),
+  }),
 };
